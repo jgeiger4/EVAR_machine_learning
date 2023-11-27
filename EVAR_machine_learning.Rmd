@@ -17,7 +17,11 @@ knitr::opts_chunk$set(echo = TRUE)
 if (!require("pacman")) install.packages("pacman")
 
 # Use pacman to load add-on packages as desired
+<<<<<<< HEAD
 pacman::p_load(pacman, rio, dplyr, ggplot2, tidyverse, mice, caret) 
+=======
+pacman::p_load(pacman, rio, dplyr, ggplot2, tidyverse, mice) 
+>>>>>>> d626eef405d35864c1c8bf7e55918491638928a9
 ```
 
 2. Load dataframes
@@ -158,11 +162,20 @@ EVAR_preprocess <- EVAR_preprocess[, colMeans(is.na(EVAR_preprocess)) <= nrow(EV
 EVAR_preprocess <- EVAR_preprocess[-(430:461), ]
 ```
 
+<<<<<<< HEAD
 7. Remove unnecessary or uninformative columns
 ```{r}
 EVAR_preprocess$zip_postal_code <- NULL
 
 #removing smoking quit date as I don't know how to work with this data type with ML for now....
+=======
+7. Remove unnecessary or uninformative columns (e.g. primprocid)
+```{r}
+EVAR_preprocess$primprocid <- NULL
+EVAR_preprocess$zip_postal_code <- NULL
+
+#removing smoking quit date as I don't know how to work with this data type with ML
+>>>>>>> d626eef405d35864c1c8bf7e55918491638928a9
 EVAR_preprocess$quit_smoking_date <- NULL
 ```
 
@@ -175,7 +188,18 @@ EVAR_preprocess <- EVAR_preprocess %>%
 ```
 
 
+<<<<<<< HEAD
 9. Hist visualization for numeric variables BEFORE imputation
+=======
+9. Data Splitting
+
+Note to future Mehdi: make sure you do NOT perform any feature selection or rescaling on the entire dataset. These steps must happen for each cross validation sequence so as to avoid data leakage. 
+Here we split to create a hold out set. Each preprocessing step will be done for both the train and test set to avoid data leakage
+
+
+
+10. Hist visualization for numeric variables BEFORE imputation
+>>>>>>> d626eef405d35864c1c8bf7e55918491638928a9
 Before we impute missing data, we must visualize distributions of all numeric variables and see if they change drastically with our imputation strategy
 
 ```{r}
@@ -194,6 +218,7 @@ preimputationHist <- for (var in names(EVAR_preprocess)[numeric_vars]) {
 par(mfrow = c(1, 1),cex.main = 1, cex.lab = 1)
 ```
 
+<<<<<<< HEAD
 10. Data Splitting
 
 Note to future Mehdi: make sure you do NOT perform any feature selection or rescaling on the entire dataset. These steps must happen for each cross validation sequence so as to avoid data leakage. 
@@ -219,6 +244,8 @@ trainSet <- EVAR_preprocess[indices, ]
 testSet <- EVAR_preprocess[-indices, ]
 ```
 
+=======
+>>>>>>> d626eef405d35864c1c8bf7e55918491638928a9
 
 ######## DATA IMPUTATION ###############
 
