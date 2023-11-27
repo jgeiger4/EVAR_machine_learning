@@ -1,11 +1,217 @@
 ---
 title: "EVAR_machine_learning"
-author: "Joshua Geiger"
+author: "Joshua Geiger and Mohammed Mehdi Shahid"
 date: "2023-10-19"
 output: html_document
 ---
-```{r setup-data-load}
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+############## SETTING UP ##########
+
+1. Install relevant libraries using pacman (i.e. package manager)
+```{r}
+# Installs pacman ("package manager") if needed
+if (!require("pacman")) install.packages("pacman")
+
+# Use pacman to load add-on packages as desired
+pacman::p_load(pacman, rio, dplyr, ggplot2, tidyverse, mice) 
+```
+
+2. Load dataframes
+```{r}
+EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_11_12_23.rds"
+EVAR <- readRDS(EVARSourcedir)
+
+EVAR_AAADatadir <- "~/Desktop/EVAR/AAAdata.xlsx"
+EVAR_AAAData <- import(EVAR_AAADatadir) # contains pre-op and post op AAA measurements
+```
+
+#### CORRECTING SOME ERRORS ################
+
+3. Correct errors in the EVAR dataframe
+```{r}
+EVAR[ which(EVAR$primprocid == 798089), "height_cm"] <- 188.00
+EVAR[ which(EVAR$primprocid == 798089), "bmi"] <- 32.7
+```
+
+
+############## FEATURE ENGINEERING ##########
+
+
+4. Feature engineering post op sac size (3 and 6 months)
+
+Now we modify EVAR_AAAData dataframe before we merge it with rest of the data
+In particular, we want to determine the 3 and 6 months post-op CT and US sac sizes
+
+```{r}
+
+EVAR_AAAData <- EVAR_AAAData %>%
+  mutate(
+    # Convert all dates to date format
+    `Procedure Date` = as.Date(`Procedure Date`, format = "%m/%d/%Y"),
+    # CT dates
+    `Post op CT 1 date` = as.Date(`Post op CT 1 date`,format = "%m/%d/%Y"),
+    `Post op CT 2 date` = as.Date(`Post op CT 2 date`,format = "%m/%d/%Y"),
+    `Post op CT 3 date` = as.Date(`Post op CT 3 date`,format = "%m/%d/%Y"),
+    `Post op CT 4 date` = as.Date(`Post op CT 4 date`,format = "%m/%d/%Y"),
+    `Post op CT 5 date` = as.Date(`Post op CT 5 date`,format = "%m/%d/%Y"),
+    
+    # US dates
+    `Post op US 1 date` = as.Date(`Post op US 1 date`,format = "%m/%d/%Y"),
+    `Post op US 2 date` = as.Date(`Post op US 2 date`,format = "%m/%d/%Y"),
+    `Post op US 3 date` = as.Date(`Post op US 3 date`,format = "%m/%d/%Y"),
+    `Post op US 4 date` = as.Date(`Post op US 4 date`,format = "%m/%d/%Y"),
+    `Post op US 5 date` = as.Date(`Post op US 5 date`,format = "%m/%d/%Y"),
+    
+    # Convert CT sac size columns to numeric
+    `Post op CT sac size 1 (mm)` = as.numeric(`Post op CT sac size 1 (mm)`),
+    `Post op CT sac size 2 (mm)` = as.numeric(`Post op CT sac size 2 (mm)`),
+    `Post op CT sac size 3 (mm)` = as.numeric(`Post op CT sac size 3 (mm)`),
+    `Post op CT sac size 4 (mm)` = as.numeric(`Post op CT sac size 4 (mm)`),
+    `Post op CT sac size 5 (mm)` = as.numeric(`Post op CT sac size 5 (mm)`),
+    
+    # Convert US sac size columns to numeric
+    `Post op US sac size 1 (mm)` = as.numeric(`Post op US sac size 1 (mm)`),
+    `Post op US sac size 2 (mm)` = as.numeric(`Post op US sac size 2 (mm)`),
+    `Post op US sac size 3 (mm)` = as.numeric(`Post op US sac size 3 (mm)`),
+    `Post op US sac size 4 (mm)` = as.numeric(`Post op US sac size 4 (mm)`),
+    `Post op US sac size 5 (mm)` = as.numeric(`Post op US sac size 5 (mm)`),
+    
+    # make cases to generate 3 months and 6 month sizes for CT
+    `3 months post op CT sac size (mm)` = case_when(
+      `Procedure Date` + months(3) < `Post op CT 1 date` ~ `Preop CT aneurysm size (mm)`,
+      `Procedure Date` + months(3) >= `Post op CT 1 date` ~ `Post op CT sac size 1 (mm)`,
+      `Procedure Date` + months(3) >= `Post op CT 2 date` ~ `Post op CT sac size 2 (mm)`,
+      `Procedure Date` + months(3) >= `Post op CT 3 date` ~ `Post op CT sac size 3 (mm)`,
+      `Procedure Date` + months(3) >= `Post op CT 4 date` ~ `Post op CT sac size 4 (mm)`,
+      `Procedure Date` + months(3) >= `Post op CT 5 date` ~ `Post op CT sac size 5 (mm)`,
+      TRUE ~ `Preop CT aneurysm size (mm)` # Default case if none of the conditions are met
+         ),
+    
+    `6 months post op CT sac size (mm)` = case_when(
+      `Procedure Date` + months(6) < `Post op CT 1 date` ~ `Preop CT aneurysm size (mm)`,
+      `Procedure Date` + months(6) >= `Post op CT 1 date` ~ `Post op CT sac size 1 (mm)`,
+      `Procedure Date` + months(6) >= `Post op CT 2 date` ~ `Post op CT sac size 2 (mm)`,
+      `Procedure Date` + months(6) >= `Post op CT 3 date` ~ `Post op CT sac size 3 (mm)`,
+      `Procedure Date` + months(6) >= `Post op CT 4 date` ~ `Post op CT sac size 4 (mm)`,
+      `Procedure Date` + months(6) >= `Post op CT 5 date` ~ `Post op CT sac size 5 (mm)`,
+      TRUE ~ `Preop CT aneurysm size (mm)` # Default case if none of the conditions are met
+         ),
+    
+    # make cases to generate 3 months and 6 month sizes for US
+    `3 months post op US sac size (mm)` = case_when(
+      `Procedure Date` + months(3) < `Post op US 1 date` ~ `Post op US sac size 1 (mm)`,
+      `Procedure Date` + months(3) >= `Post op US 1 date` ~ `Post op US sac size 1 (mm)`,
+      `Procedure Date` + months(3) >= `Post op US 2 date` ~ `Post op US sac size 2 (mm)`,
+      `Procedure Date` + months(3) >= `Post op US 3 date` ~ `Post op US sac size 3 (mm)`,
+      `Procedure Date` + months(3) >= `Post op US 4 date` ~ `Post op US sac size 4 (mm)`,
+      `Procedure Date` + months(3) >= `Post op US 5 date` ~ `Post op US sac size 5 (mm)`,
+      TRUE ~ NA_real_ # Default case if none of the conditions are met
+         ),
+    
+    `6 months post op US sac size (mm)` = case_when(
+      `Procedure Date` + months(6) < `Post op US 1 date` ~ `Post op US sac size 1 (mm)`,
+      `Procedure Date` + months(6) >= `Post op US 1 date` ~ `Post op US sac size 1 (mm)`,
+      `Procedure Date` + months(6) >= `Post op US 2 date` ~ `Post op US sac size 2 (mm)`,
+      `Procedure Date` + months(6) >= `Post op US 3 date` ~ `Post op US sac size 3 (mm)`,
+      `Procedure Date` + months(6) >= `Post op US 4 date` ~ `Post op US sac size 4 (mm)`,
+      `Procedure Date` + months(6) >= `Post op US 5 date` ~ `Post op US sac size 5 (mm)`,
+      TRUE ~ NA_real_ # Default case if none of the conditions are met
+         ),
+    
+    )
+# The above code assumes that your dates are in "MM/DD/YYYY" format. Adjust the format accordingly if your dates are in a different format.
+```
+
+
+5. Merge dataframes
+
+Now we merge the AAA post-op sizes at 3 and 6 months to the main EVAR dataframe
+We want all the variables in EVAR, but only the 3 month and 6 month post-op sac sizes from the EVAR_AAAdata
+```{r}
+EVAR_AAAData_selectedmerge <- select(EVAR_AAAData, primprocid, `Preop CT aneurysm size (mm)`,
+                                     `3 months post op CT sac size (mm)`, `6 months post op CT sac size (mm)`,
+                                     `3 months post op US sac size (mm)`, `6 months post op US sac size (mm)`)
+EVAR_merged <- merge(EVAR_AAAData_selectedmerge,EVAR, by = "primprocid")
+```
+
+
+############## DATA PREPROCESSING ##########
+
+6. Remove cols and rows with too many missing values
+- remove records with too many missing values (>40%)
+- remove columns with too many missing values (>20%)
+
+```{r}
+
+# Remove records with too many missing values
+EVAR_preprocess <- EVAR_merged[complete.cases(EVAR_merged) | rowSums(is.na(EVAR_merged)) <= ncol(EVAR_merged) * 0.4, ] # 0.4 denotes removing records with more than 40% missing values
+
+# Remove columns with too many missing values
+EVAR_preprocess <- EVAR_preprocess[, colMeans(is.na(EVAR_preprocess)) <= nrow(EVAR_preprocess) * 0.2] # 20%
+
+
+# Remove rows 430 to 461 as they are not complete yet
+EVAR_preprocess <- EVAR_preprocess[-(430:461), ]
+```
+
+7. Remove unnecessary or uninformative columns (e.g. primprocid)
+```{r}
+EVAR_preprocess$primprocid <- NULL
+EVAR_preprocess$zip_postal_code <- NULL
+
+#removing smoking quit date as I don't know how to work with this data type with ML
+EVAR_preprocess$quit_smoking_date <- NULL
+```
+
+
+8. Change column data types
+```{r}
+# Convert all character columns to factors
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate_if(is.character, as.factor)
+```
+
+
+9. Data Splitting
+
+Note to future Mehdi: make sure you do NOT perform any feature selection or rescaling on the entire dataset. These steps must happen for each cross validation sequence so as to avoid data leakage. 
+Here we split to create a hold out set. Each preprocessing step will be done for both the train and test set to avoid data leakage
+
+
+
+10. Hist visualization for numeric variables BEFORE imputation
+Before we impute missing data, we must visualize distributions of all numeric variables and see if they change drastically with our imputation strategy
+
+```{r}
+# Extract column names (assuming the variables are numeric)
+numeric_vars <- sapply(EVAR_preprocess, is.numeric)
+
+# Set up a multi-plot layout
+par(mfrow = c(2, 4), cex.main = 0.8, cex.lab = 0.6)  # Adjust the layout as needed
+
+# Create histograms for all numeric variables pre imputation
+preimputationHist <- for (var in names(EVAR_preprocess)[numeric_vars]) {
+  hist(EVAR_preprocess[[var]], main = var, xlab = var, col = "lightblue", border = "black")
+}
+
+# Reset the layout to default
+par(mfrow = c(1, 1),cex.main = 1, cex.lab = 1)
+```
+
+
+######## DATA IMPUTATION ###############
+
+11. Numeric variables imputation.
+
+The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations) for numeric variables
+We assume data is missing at random (MAR)
+
+
+```{r}
 
 ```
 
