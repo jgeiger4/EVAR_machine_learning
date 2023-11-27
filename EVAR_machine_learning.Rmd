@@ -3,28 +3,28 @@ title: "EVAR_machine_learning"
 author: "Joshua Geiger and Mohammed Mehdi Shahid"
 date: "2023-10-19"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-############## SETTING UP ##########
+#### SETTING UP
+Install relevant libraries using pacman (i.e. package manager)
 
-1. Install relevant libraries using pacman (i.e. package manager)
 ```{r}
 # Installs pacman ("package manager") if needed
 if (!require("pacman")) install.packages("pacman")
 
 # Use pacman to load add-on packages as desired
-<<<<<<< HEAD
 pacman::p_load(pacman, rio, dplyr, ggplot2, tidyverse, mice, caret) 
-=======
-pacman::p_load(pacman, rio, dplyr, ggplot2, tidyverse, mice) 
->>>>>>> d626eef405d35864c1c8bf7e55918491638928a9
 ```
 
-2. Load dataframes
+Load dataframes
+
 ```{r}
 EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_11_12_23.rds"
 EVAR <- readRDS(EVARSourcedir)
@@ -33,22 +33,20 @@ EVAR_AAADatadir <- "~/Desktop/EVAR/AAAdata.xlsx"
 EVAR_AAAData <- import(EVAR_AAADatadir) # contains pre-op and post op AAA measurements
 ```
 
-#### CORRECTING SOME ERRORS ################
+#### CORRECTING SOME ERRORS
+Correct errors in the EVAR dataframe
 
-3. Correct errors in the EVAR dataframe
 ```{r}
 EVAR[ which(EVAR$primprocid == 798089), "height_cm"] <- 188.00
 EVAR[ which(EVAR$primprocid == 798089), "bmi"] <- 32.7
 ```
 
+#### FEATURE ENGINEERING
+Feature engineering post op sac size (3 and 6 months)
 
-############## FEATURE ENGINEERING ##########
-
-
-4. Feature engineering post op sac size (3 and 6 months)
-
-Now we modify EVAR_AAAData dataframe before we merge it with rest of the data
-In particular, we want to determine the 3 and 6 months post-op CT and US sac sizes
+Now we modify EVAR_AAAData dataframe before we merge it with rest of the
+data In particular, we want to determine the 3 and 6 months post-op CT
+and US sac sizes
 
 ```{r}
 
@@ -131,10 +129,11 @@ EVAR_AAAData <- EVAR_AAAData %>%
 ```
 
 
-5. Merge dataframes
+Merge dataframes
+Now we merge the AAA post-op sizes at 3 and 6 months to the main EVAR
+dataframe We want all the variables in EVAR, but only the 3 month and 6
+month post-op sac sizes from the EVAR_AAAdata
 
-Now we merge the AAA post-op sizes at 3 and 6 months to the main EVAR dataframe
-We want all the variables in EVAR, but only the 3 month and 6 month post-op sac sizes from the EVAR_AAAdata
 ```{r}
 EVAR_AAAData_selectedmerge <- select(EVAR_AAAData, primprocid, `Preop CT aneurysm size (mm)`,
                                      `3 months post op CT sac size (mm)`, `6 months post op CT sac size (mm)`,
@@ -142,12 +141,11 @@ EVAR_AAAData_selectedmerge <- select(EVAR_AAAData, primprocid, `Preop CT aneurys
 EVAR_merged <- merge(EVAR_AAAData_selectedmerge,EVAR, by = "primprocid")
 ```
 
+#### DATA PREPROCESSING
 
-############## DATA PREPROCESSING ##########
-
-6. Remove cols and rows with too many missing values
-- remove records with too many missing values (>40%)
-- remove columns with too many missing values (>20%)
+Remove cols and rows with too many missing values
+-   remove records with too many missing values (\>40%)
+-   remove columns with too many missing values (\>20%)
 
 ```{r}
 
@@ -162,44 +160,22 @@ EVAR_preprocess <- EVAR_preprocess[, colMeans(is.na(EVAR_preprocess)) <= nrow(EV
 EVAR_preprocess <- EVAR_preprocess[-(430:461), ]
 ```
 
-<<<<<<< HEAD
-7. Remove unnecessary or uninformative columns
+Remove unnecessary or uninformative columns
 ```{r}
 EVAR_preprocess$zip_postal_code <- NULL
 
 #removing smoking quit date as I don't know how to work with this data type with ML for now....
-=======
-7. Remove unnecessary or uninformative columns (e.g. primprocid)
-```{r}
-EVAR_preprocess$primprocid <- NULL
-EVAR_preprocess$zip_postal_code <- NULL
-
-#removing smoking quit date as I don't know how to work with this data type with ML
->>>>>>> d626eef405d35864c1c8bf7e55918491638928a9
 EVAR_preprocess$quit_smoking_date <- NULL
 ```
 
-
-8. Change column data types
+Change column data types
 ```{r}
 # Convert all character columns to factors
 EVAR_preprocess <- EVAR_preprocess %>%
   mutate_if(is.character, as.factor)
 ```
 
-
-<<<<<<< HEAD
-9. Hist visualization for numeric variables BEFORE imputation
-=======
-9. Data Splitting
-
-Note to future Mehdi: make sure you do NOT perform any feature selection or rescaling on the entire dataset. These steps must happen for each cross validation sequence so as to avoid data leakage. 
-Here we split to create a hold out set. Each preprocessing step will be done for both the train and test set to avoid data leakage
-
-
-
-10. Hist visualization for numeric variables BEFORE imputation
->>>>>>> d626eef405d35864c1c8bf7e55918491638928a9
+Hist visualization for numeric variables BEFORE imputation.
 Before we impute missing data, we must visualize distributions of all numeric variables and see if they change drastically with our imputation strategy
 
 ```{r}
@@ -218,12 +194,13 @@ preimputationHist <- for (var in names(EVAR_preprocess)[numeric_vars]) {
 par(mfrow = c(1, 1),cex.main = 1, cex.lab = 1)
 ```
 
-<<<<<<< HEAD
-10. Data Splitting
+#### DATA SPLITTING
 
-Note to future Mehdi: make sure you do NOT perform any feature selection or rescaling on the entire dataset. These steps must happen for each cross validation sequence so as to avoid data leakage. 
-Here we shuffle then split to create a hold out set. 
-Each preprocessing step will be done for both the train and test set to avoid data leakage
+Note to future Mehdi: make sure you do NOT perform any feature selection
+or rescaling on the entire dataset. These steps must happen for each
+cross validation sequence so as to avoid data leakage. Here we shuffle
+then split to create a hold out set. Each preprocessing step will be
+done for both the train and test set to avoid data leakage
 
 ```{r}
 
@@ -244,18 +221,12 @@ trainSet <- EVAR_preprocess[indices, ]
 testSet <- EVAR_preprocess[-indices, ]
 ```
 
-=======
->>>>>>> d626eef405d35864c1c8bf7e55918491638928a9
-
-######## DATA IMPUTATION ###############
+#### DATA IMPUTATION
 
 11. Numeric variables imputation.
 
-The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations) for numeric variables
-We assume data is missing at random (MAR)
-
+The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations) for numeric variables We assume data is missing at random (MAR)
 
 ```{r}
 
 ```
-
