@@ -1,2 +1,8 @@
 .Rproj.user
+<<<<<<< HEAD
 EVAR_machine_learning.Rproj
+=======
+.Rhistory
+.RData
+.Ruserdata
+>>>>>>> cdad848286bc95c37f139bb459cd7df9ead7b1d4
