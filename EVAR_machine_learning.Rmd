@@ -27,15 +27,12 @@ if (!require("pacman")) install.packages("pacman")
 #Install relevant libraries using pacman (i.e. package manager)
 
 # Use pacman to load add-on packages as desired
-pacman::p_load(pacman, rio, dplyr, ggplot2, tidyverse, mice, caret) 
+pacman::p_load(pacman, rio, dplyr, forcats, ggplot2, tidyverse, mice, caret)
 ```
 
 ```{r load-data}
-EVARSourcedir <- "data/EVAR_cleaned_filtered_11_12_23.rds"
+EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_11_12_23.rds"
 EVAR <- readRDS(EVARSourcedir)
-
-EVAR_AAADatadir <- "~/Desktop/EVAR/AAAdata.xlsx"
-EVAR_AAAData <- import(EVAR_AAADatadir) # contains pre-op and post op AAA measurements
 ```
 
 ```{r correct-errors}
@@ -44,107 +41,8 @@ EVAR[ which(EVAR$primprocid == 798089), "height_cm"] <- 188.00
 EVAR[ which(EVAR$primprocid == 798089), "bmi"] <- 32.7
 ```
 
-#### FEATURE ENGINEERING
-Feature engineering post op sac size (3 and 6 months)
 
-Now we modify EVAR_AAAData dataframe before we merge it with rest of the
-data In particular, we want to determine the 3 and 6 months post-op CT
-and US sac sizes
-
-```{r feature-engineering}
-
-EVAR_AAAData <- EVAR_AAAData %>%
-  mutate(
-    # Convert all dates to date format
-    `Procedure Date` = as.Date(`Procedure Date`, format = "%m/%d/%Y"),
-    # CT dates
-    `Post op CT 1 date` = as.Date(`Post op CT 1 date`,format = "%m/%d/%Y"),
-    `Post op CT 2 date` = as.Date(`Post op CT 2 date`,format = "%m/%d/%Y"),
-    `Post op CT 3 date` = as.Date(`Post op CT 3 date`,format = "%m/%d/%Y"),
-    `Post op CT 4 date` = as.Date(`Post op CT 4 date`,format = "%m/%d/%Y"),
-    `Post op CT 5 date` = as.Date(`Post op CT 5 date`,format = "%m/%d/%Y"),
-    
-    # US dates
-    `Post op US 1 date` = as.Date(`Post op US 1 date`,format = "%m/%d/%Y"),
-    `Post op US 2 date` = as.Date(`Post op US 2 date`,format = "%m/%d/%Y"),
-    `Post op US 3 date` = as.Date(`Post op US 3 date`,format = "%m/%d/%Y"),
-    `Post op US 4 date` = as.Date(`Post op US 4 date`,format = "%m/%d/%Y"),
-    `Post op US 5 date` = as.Date(`Post op US 5 date`,format = "%m/%d/%Y"),
-    
-    # Convert CT sac size columns to numeric
-    `Post op CT sac size 1 (mm)` = as.numeric(`Post op CT sac size 1 (mm)`),
-    `Post op CT sac size 2 (mm)` = as.numeric(`Post op CT sac size 2 (mm)`),
-    `Post op CT sac size 3 (mm)` = as.numeric(`Post op CT sac size 3 (mm)`),
-    `Post op CT sac size 4 (mm)` = as.numeric(`Post op CT sac size 4 (mm)`),
-    `Post op CT sac size 5 (mm)` = as.numeric(`Post op CT sac size 5 (mm)`),
-    
-    # Convert US sac size columns to numeric
-    `Post op US sac size 1 (mm)` = as.numeric(`Post op US sac size 1 (mm)`),
-    `Post op US sac size 2 (mm)` = as.numeric(`Post op US sac size 2 (mm)`),
-    `Post op US sac size 3 (mm)` = as.numeric(`Post op US sac size 3 (mm)`),
-    `Post op US sac size 4 (mm)` = as.numeric(`Post op US sac size 4 (mm)`),
-    `Post op US sac size 5 (mm)` = as.numeric(`Post op US sac size 5 (mm)`),
-    
-    # make cases to generate 3 months and 6 month sizes for CT
-    `3 months post op CT sac size (mm)` = case_when(
-      `Procedure Date` + months(3) < `Post op CT 1 date` ~ `Preop CT aneurysm size (mm)`,
-      `Procedure Date` + months(3) >= `Post op CT 1 date` ~ `Post op CT sac size 1 (mm)`,
-      `Procedure Date` + months(3) >= `Post op CT 2 date` ~ `Post op CT sac size 2 (mm)`,
-      `Procedure Date` + months(3) >= `Post op CT 3 date` ~ `Post op CT sac size 3 (mm)`,
-      `Procedure Date` + months(3) >= `Post op CT 4 date` ~ `Post op CT sac size 4 (mm)`,
-      `Procedure Date` + months(3) >= `Post op CT 5 date` ~ `Post op CT sac size 5 (mm)`,
-      TRUE ~ `Preop CT aneurysm size (mm)` # Default case if none of the conditions are met
-         ),
-    
-    `6 months post op CT sac size (mm)` = case_when(
-      `Procedure Date` + months(6) < `Post op CT 1 date` ~ `Preop CT aneurysm size (mm)`,
-      `Procedure Date` + months(6) >= `Post op CT 1 date` ~ `Post op CT sac size 1 (mm)`,
-      `Procedure Date` + months(6) >= `Post op CT 2 date` ~ `Post op CT sac size 2 (mm)`,
-      `Procedure Date` + months(6) >= `Post op CT 3 date` ~ `Post op CT sac size 3 (mm)`,
-      `Procedure Date` + months(6) >= `Post op CT 4 date` ~ `Post op CT sac size 4 (mm)`,
-      `Procedure Date` + months(6) >= `Post op CT 5 date` ~ `Post op CT sac size 5 (mm)`,
-      TRUE ~ `Preop CT aneurysm size (mm)` # Default case if none of the conditions are met
-         ),
-    
-    # make cases to generate 3 months and 6 month sizes for US
-    `3 months post op US sac size (mm)` = case_when(
-      `Procedure Date` + months(3) < `Post op US 1 date` ~ `Post op US sac size 1 (mm)`,
-      `Procedure Date` + months(3) >= `Post op US 1 date` ~ `Post op US sac size 1 (mm)`,
-      `Procedure Date` + months(3) >= `Post op US 2 date` ~ `Post op US sac size 2 (mm)`,
-      `Procedure Date` + months(3) >= `Post op US 3 date` ~ `Post op US sac size 3 (mm)`,
-      `Procedure Date` + months(3) >= `Post op US 4 date` ~ `Post op US sac size 4 (mm)`,
-      `Procedure Date` + months(3) >= `Post op US 5 date` ~ `Post op US sac size 5 (mm)`,
-      TRUE ~ NA_real_ # Default case if none of the conditions are met
-         ),
-    
-    `6 months post op US sac size (mm)` = case_when(
-      `Procedure Date` + months(6) < `Post op US 1 date` ~ `Post op US sac size 1 (mm)`,
-      `Procedure Date` + months(6) >= `Post op US 1 date` ~ `Post op US sac size 1 (mm)`,
-      `Procedure Date` + months(6) >= `Post op US 2 date` ~ `Post op US sac size 2 (mm)`,
-      `Procedure Date` + months(6) >= `Post op US 3 date` ~ `Post op US sac size 3 (mm)`,
-      `Procedure Date` + months(6) >= `Post op US 4 date` ~ `Post op US sac size 4 (mm)`,
-      `Procedure Date` + months(6) >= `Post op US 5 date` ~ `Post op US sac size 5 (mm)`,
-      TRUE ~ NA_real_ # Default case if none of the conditions are met
-         ),
-    
-    )
-# The above code assumes that your dates are in "MM/DD/YYYY" format. Adjust the format accordingly if your dates are in a different format.
-```
-
-
-Merge dataframes
-Now we merge the AAA post-op sizes at 3 and 6 months to the main EVAR
-dataframe We want all the variables in EVAR, but only the 3 month and 6
-month post-op sac sizes from the EVAR_AAAdata
-
-```{r}
-EVAR_AAAData_selectedmerge <- select(EVAR_AAAData, primprocid, `Preop CT aneurysm size (mm)`,
-                                     `3 months post op CT sac size (mm)`, `6 months post op CT sac size (mm)`,
-                                     `3 months post op US sac size (mm)`, `6 months post op US sac size (mm)`)
-EVAR_merged <- merge(EVAR_AAAData_selectedmerge,EVAR, by = "primprocid")
-```
-
-#### DATA PREPROCESSING
+# DATA PREPROCESSING
 
 Remove cols and rows with too many missing values
 -   remove records with too many missing values (\>40%)
@@ -174,13 +72,82 @@ EVAR_preprocess$quit_smoking_date <- NULL
 Change column data types
 
 When converting to factors make sure the ordering makes sense.For example factor levels for smoking might look something like never, quit, current. Changing the order to something like quit, current, never, could very much mess with the analysis if these factors are considered as ordinal variables, which they often are. can use fct_relevel to change these
+
 ```{r}
 # Convert all character columns to factors
 EVAR_preprocess <- EVAR_preprocess %>%
   mutate_if(is.character, as.factor)
 
-fct_relevel()
 ```
+
+'No' and 'Yes' are mostly nominal, but for consistency, we can reorder
+all factor variables with 'No' and 'Yes' to be No for level 1 and Yes
+for level 2
+
+```{r}
+# Identify factor variables with 'No' and 'Yes' levels
+no_yes_factors <- EVAR_preprocess %>%
+  select(where(is.factor)) %>%
+  keep(~ length(levels(.)) == 2 && all(c("No", "Yes") %in% levels(.)))
+
+# Reorder the levels for 'No' as level 1 and 'Yes' as level 2
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(across(all_of(names(no_yes_factors)), ~fct_relevel(., "No", "Yes")))
+
+```
+
+```{r factor-variables}
+# To make sure ordering of each factor variable makes sense, we must investigate each to determine which need to reordered with fct_relevel
+# Extract information about factor variables
+factorVars_info <- lapply(names(EVAR_preprocess), function(column_name) {
+  column <- EVAR_preprocess[[column_name]]
+  
+  if (is.factor(column)) {
+    levels_info <- levels(column)
+    return(list(
+      variable_name = column_name,
+      num_levels = length(levels_info),
+      levels = levels_info
+    ))
+  } else {
+    return(NULL)  # Not a factor variable
+  }
+})
+
+# Remove NULL elements (non-factor variables) from the list
+factorVars_info <- factorVars_info[sapply(factorVars_info, function(x) !is.null(x))]
+
+# Print the information
+for (info in factorVars_info) {
+  cat("Variable Name:", info$variable_name, "\n")
+  cat("Number of Levels:", info$num_levels, "\n")
+  cat("Levels:", paste(info$levels, collapse = "; "), "\n\n")
+}
+```
+
+Based on the above output, we choose which variables to reorder.
+Variables that need to be reordered: cvd, prior_chf, dysrhythmia,
+diabetes, dialysis, smoking, prior_pci, prior_cea_cas,
+prior_aneurysm_repair, stress_test,pre_op_p2y12_antagonist,
+pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction,
+aorta_neck_angle, neck_aaa_angle, anesthesia, access_right, access_left,
+right_iliac_adjunct, left_iliac_adjunct, proximal_aortic_extensions,
+right_iliac_endpoint, left_iliac_endpoint, number_right,
+distal_endpoint_right, number_left, distal_endpoint_left,
+iv_bp_support_post_op, discharge_status
+
+aortic_graft_length_1 needs some error fixes and then convert to num
+right_iliac_graft_diameter_1 convert to num "right_iliac_graft_length_1"
+and "left_iliac_graft_length_1" convert to num - has this 'Other' value
+
+
+
+
+
+Hist visualization for numeric variables BEFORE imputation. Before we
+impute missing data, we must visualize distributions of all numeric
+variables and see if they change drastically with our imputation
+strategy
 
 Hist visualization for numeric variables BEFORE imputation.
 Before we impute missing data, we must visualize distributions of all numeric variables and see if they change drastically with our imputation strategy
