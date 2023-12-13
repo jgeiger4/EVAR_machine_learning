@@ -35,6 +35,7 @@ EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_11_12_23.rds"
 EVAR <- readRDS(EVARSourcedir)
 ```
 
+
 ```{r correct-errors}
 #Correct errors in the EVAR dataframe
 EVAR[ which(EVAR$primprocid == 798089), "height_cm"] <- 188.00
@@ -51,7 +52,7 @@ Remove cols and rows with too many missing values
 ```{r}
 
 # Remove records with too many missing values
-EVAR_preprocess <- EVAR_merged[complete.cases(EVAR_merged) | rowSums(is.na(EVAR_merged)) <= ncol(EVAR_merged) * 0.4, ] # 0.4 denotes removing records with more than 40% missing values
+EVAR_preprocess <- EVAR[complete.cases(EVAR) | rowSums(is.na(EVAR)) <= ncol(EVAR) * 0.4, ] # 0.4 denotes removing records with more than 40% missing values
 
 # Remove columns with too many missing values
 EVAR_preprocess <- EVAR_preprocess[, colMeans(is.na(EVAR_preprocess)) <= nrow(EVAR_preprocess) * 0.2] # 20%
@@ -71,7 +72,7 @@ EVAR_preprocess$quit_smoking_date <- NULL
 
 Change column data types
 
-When converting to factors make sure the ordering makes sense.For example factor levels for smoking might look something like never, quit, current. Changing the order to something like quit, current, never, could very much mess with the analysis if these factors are considered as ordinal variables, which they often are. can use fct_relevel to change these
+When converting to factors make sure the ordering makes sense. For example factor levels for smoking might look something like never, quit, current. Changing the order to something like quit, current, never, could very much mess with the analysis if these factors are considered as ordinal variables, which they often are. can use fct_relevel to change these
 
 ```{r}
 # Convert all character columns to factors
@@ -95,6 +96,8 @@ EVAR_preprocess <- EVAR_preprocess %>%
   mutate(across(all_of(names(no_yes_factors)), ~fct_relevel(., "No", "Yes")))
 
 ```
+
+Determine which factors need to be releveled
 
 ```{r factor-variables}
 # To make sure ordering of each factor variable makes sense, we must investigate each to determine which need to reordered with fct_relevel
@@ -125,20 +128,70 @@ for (info in factorVars_info) {
 }
 ```
 
-Based on the above output, we choose which variables to reorder.
-Variables that need to be reordered: cvd, prior_chf, dysrhythmia,
-diabetes, dialysis, smoking, prior_pci, prior_cea_cas,
-prior_aneurysm_repair, stress_test,pre_op_p2y12_antagonist,
-pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction,
-aorta_neck_angle, neck_aaa_angle, anesthesia, access_right, access_left,
-right_iliac_adjunct, left_iliac_adjunct, proximal_aortic_extensions,
-right_iliac_endpoint, left_iliac_endpoint, number_right,
-distal_endpoint_right, number_left, distal_endpoint_left,
-iv_bp_support_post_op, discharge_status
+Based on the above output, we choose which variables to reorder and also correct some errors within the dataset.
 
+Correcting some errors
 aortic_graft_length_1 needs some error fixes and then convert to num
-right_iliac_graft_diameter_1 convert to num "right_iliac_graft_length_1"
-and "left_iliac_graft_length_1" convert to num - has this 'Other' value
+right_iliac_graft_diameter_1 convert to number
+right_iliac_graft_length_1 and left_iliac_graft_length_1 - convert to num because has this 'Other' value
+
+
+```{r correct-errors}
+# aortic_graft_length_1 needs some error fixes and then convert to num
+# Here we convert one of the errors from 90-30 to 90. Need to check if this is okay....
+EVAR_preprocess$aortic_graft_length_1 <- as.character(EVAR_preprocess$aortic_graft_length_1)
+EVAR_preprocess[which(EVAR_preprocess$aortic_graft_length_1 == "90-30"), "aortic_graft_length_1"] <- "90"
+EVAR_preprocess$aortic_graft_length_1 <- as.numeric(EVAR_preprocess$aortic_graft_length_1)
+
+
+# right_iliac_graft_diameter_1 to numeric
+EVAR_preprocess$right_iliac_graft_diameter_1 <- as.double(EVAR_preprocess$right_iliac_graft_diameter_1)
+
+
+# right_iliac_graft_length_1 convert to num and remove "other" option
+# Convert "Other" to NA
+for (convert in which(EVAR_preprocess$right_iliac_graft_length_1 == "Other")) {
+  EVAR_preprocess[convert, "right_iliac_graft_length_1"] <- NA
+}
+EVAR_preprocess$right_iliac_graft_length_1 <- as.numeric(EVAR_preprocess$right_iliac_graft_length_1)
+
+# left_iliac_graft_length_1 convert to num and remove "other" option
+# Convert "Other" to NA
+for (convert in which(EVAR_preprocess$left_iliac_graft_length_1 == "Other")) {
+  EVAR_preprocess[convert, "left_iliac_graft_length_1"] <- NA
+}
+EVAR_preprocess$left_iliac_graft_length_1 <- as.numeric(EVAR_preprocess$left_iliac_graft_length_1)
+
+```
+
+
+
+Variables that need to be reordered: 
+cvd, prior_chf, dysrhythmia, diabetes, smoking, prior_pci, prior_cea_cas, prior_aneurysm_repair, stress_test,pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle, neck_aaa_angle, anesthesia, access_right, access_left, right_iliac_adjunct, left_iliac_adjunct, proximal_aortic_extensions, right_iliac_endpoint, left_iliac_endpoint, number_right, distal_endpoint_right, number_left, distal_endpoint_left, iv_bp_support_post_op, discharge_status
+
+
+```{r reorder-factors}
+
+#cvd
+EVAR_preprocess$cvd <- fct_relevel(EVAR_preprocess$cvd,"None","Hx stroke, asymptomatic", "Hx stroke, minor deficit", "Hx stroke, major deficit")
+
+#prior_chf
+EVAR_preprocess$prior_chf <- fct_relevel(EVAR_preprocess$prior_chf,"None","Asymp, hx CHF", "Mild", "Moderate")
+
+#dysrhythmia
+EVAR_preprocess$dysrhythmia <- fct_relevel(EVAR_preprocess$dysrhythmia,"No","Yes, A-fib/flutter","A-V block w pacemaker", "Yes, with ICD","Yes, ventricular", "Yes, with ICD", "Other")
+
+
+#diabetes
+EVAR_preprocess$diabetes <- fct_relevel(EVAR_preprocess$diabetes,"No","Diet","Non-insulin med", "Insulin")
+
+#dialysis
+EVAR_preprocess$dialysis <- fct_relevel(EVAR_preprocess$dialysis,"No","Diet","Non-insulin med", "Insulin")
+
+#smoking
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+```
 
 
 
