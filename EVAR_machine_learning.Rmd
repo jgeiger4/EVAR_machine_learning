@@ -7,7 +7,8 @@ editor_options:
   markdown: 
     wrap: 72
 ---
-
+Update!
+Dataset is done, and ready to go! there are 
 
 Hey Mehdi,
 
@@ -16,10 +17,6 @@ Thanks for getting this started. The rds dataset that i provided is a pretty goo
 There are variables within the data set that are incomplete and perhaps chart reviewing to finish collecting some of this data will be important. Particularly the first couple of patients were recorded before all of the VQI variables were established and so there is some missing data there. Additionaly, the last 20 some patients I recently extracted from the VQI and so variables we manually extracted from the chart have not be collected yet. Baqir and I can help out with this. Baqir has also submitted a request for the lab values for these last 20 some patients. In addition we will be obtaining dates of death for the entire data set. I think doing an additional analysis using similar methods on survival, either length of survival or survival at 5 years will also be interesting.
 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 ```{r setup}
 # Installs pacman ("package manager") if needed
 if (!require("pacman")) install.packages("pacman")
@@ -27,11 +24,14 @@ if (!require("pacman")) install.packages("pacman")
 #Install relevant libraries using pacman (i.e. package manager)
 
 # Use pacman to load add-on packages as desired
-pacman::p_load(pacman, rio, dplyr, forcats, ggplot2, tidyverse, mice, caret)
+pacman::p_load(pacman, rio, dplyr, forcats, janitor, ggplot2, tidyverse, mice, caret)
 ```
 
 ```{r load-data}
 EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_11_12_23.rds"
+#Sourcedir for Josh
+EVARSourcedir <- "data/EVAR_cleaned_filtered_12_23_23.rds"
+
 EVAR <- readRDS(EVARSourcedir)
 ```
 
@@ -52,14 +52,19 @@ Remove cols and rows with too many missing values
 ```{r}
 
 # Remove records with too many missing values
-EVAR_preprocess <- EVAR[complete.cases(EVAR) | rowSums(is.na(EVAR)) <= ncol(EVAR) * 0.4, ] # 0.4 denotes removing records with more than 40% missing values
+#EVAR_preprocess <- EVAR[complete.cases(EVAR) | rowSums(is.na(EVAR)) <= ncol(EVAR) * 0.4, ] # 0.4 denotes removing records with more than 40% missing values
+#this can be shortened
+EVAR_preprocess <- EVAR %>%
+  remove_empty(which = "rows", cutoff = 0.6) #Remove observations with more than 60% missing data
 
 # Remove columns with too many missing values
-EVAR_preprocess <- EVAR_preprocess[, colMeans(is.na(EVAR_preprocess)) <= nrow(EVAR_preprocess) * 0.2] # 20%
-
+#EVAR_preprocess <- EVAR_preprocess[, colMeans(is.na(EVAR_preprocess)) <= nrow(EVAR_preprocess) * 0.2] # 20%
+EVAR_preprocess <- EVAR %>%
+  remove_empty(which = "cols", cutoff = 0.4) #Remove columns with more than 40% missing data
 
 # Remove rows 430 to 461 as they are not complete yet
-EVAR_preprocess <- EVAR_preprocess[-(430:461), ]
+#Complete!
+#EVAR_preprocess <- EVAR_preprocess[-(430:461), ]
 ```
 
 Remove unnecessary or uninformative columns
@@ -67,7 +72,8 @@ Remove unnecessary or uninformative columns
 EVAR_preprocess$zip_postal_code <- NULL
 
 #removing smoking quit date as I don't know how to work with this data type with ML for now....
-EVAR_preprocess$quit_smoking_date <- NULL
+#I created a years since quite smoking variable and removed the date. 
+#EVAR_preprocess$quit_smoking_date <- NULL
 ```
 
 Change column data types
