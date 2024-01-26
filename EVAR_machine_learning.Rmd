@@ -70,6 +70,7 @@ EVAR_preprocess <- EVAR %>%
 Remove unnecessary or uninformative columns
 ```{r}
 EVAR_preprocess$zip_postal_code <- NULL
+EVAR_preprocess$dysrhythmia <- NULL
 
 #removing smoking quit date as I don't know how to work with this data type with ML for now....
 #I created a years since quite smoking variable and removed the date. 
@@ -184,10 +185,6 @@ EVAR_preprocess$cvd <- fct_relevel(EVAR_preprocess$cvd,"None","Hx stroke, asympt
 #prior_chf
 EVAR_preprocess$prior_chf <- fct_relevel(EVAR_preprocess$prior_chf,"None","Asymp, hx CHF", "Mild", "Moderate")
 
-#dysrhythmia
-EVAR_preprocess$dysrhythmia <- fct_relevel(EVAR_preprocess$dysrhythmia,"No","Yes, A-fib/flutter","A-V block w pacemaker", "Yes, with ICD","Yes, ventricular", "Yes, with ICD", "Other")
-
-
 #diabetes
 EVAR_preprocess$diabetes <- fct_relevel(EVAR_preprocess$diabetes,"No","Diet","Non-insulin med", "Insulin")
 
@@ -195,6 +192,83 @@ EVAR_preprocess$diabetes <- fct_relevel(EVAR_preprocess$diabetes,"No","Diet","No
 EVAR_preprocess$dialysis <- fct_relevel(EVAR_preprocess$dialysis,"No","Diet","Non-insulin med", "Insulin")
 
 #smoking
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+
+
+
+
+
+prior_pci
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+prior_cea_cas
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+prior_aneurysm_repair
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+stress_test
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+pre_op_p2y12_antagonist
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+pre_op_beta_blocker
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+pre_op_chronic_anticoagulant
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+ejection_fraction
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+aorta_neck_angle
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+neck_aaa_angle
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+anesthesia
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+access_right
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+access_left
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+right_iliac_adjunct
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+left_iliac_adjunct
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+proximal_aortic_extensions
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+right_iliac_endpoint
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+left_iliac_endpoint
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+number_right
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+distal_endpoint_right
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+number_left
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+distal_endpoint_left
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+iv_bp_support_post_op
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+
+discharge_status
 EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
 
 ```
