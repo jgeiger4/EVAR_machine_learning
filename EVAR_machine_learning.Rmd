@@ -172,7 +172,6 @@ EVAR_preprocess$left_iliac_graft_length_1 <- as.numeric(EVAR_preprocess$left_ili
 ```
 
 
-
 Variables that need to be reordered: 
 cvd, prior_chf, dysrhythmia, diabetes, smoking, prior_pci, prior_cea_cas, prior_aneurysm_repair, stress_test,pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle, neck_aaa_angle, anesthesia, access_right, access_left, right_iliac_adjunct, left_iliac_adjunct, proximal_aortic_extensions, right_iliac_endpoint, left_iliac_endpoint, number_right, distal_endpoint_right, number_left, distal_endpoint_left, iv_bp_support_post_op, discharge_status
 
@@ -197,79 +196,77 @@ EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior",
 
 
 
+#prior_pci
+EVAR_preprocess$prior_pci <- fct_relevel(EVAR_preprocess$prior_pci,"Never", "Prior", "Current")
 
+#prior_cea_cas
+EVAR_preprocess$prior_cea_cas <- fct_relevel(EVAR_preprocess$prior_cea_cas,"Never", "Prior", "Current")
 
-prior_pci
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#prior_aneurysm_repair
+EVAR_preprocess$prior_aneurysm_repair <- fct_relevel(EVAR_preprocess$prior_aneurysm_repair,"Never", "Prior", "Current")
 
-prior_cea_cas
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#stress_test
+EVAR_preprocess$stress_test <- fct_relevel(EVAR_preprocess$stress_test,"Never", "Prior", "Current")
 
-prior_aneurysm_repair
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#pre_op_p2y12_antagonist
+EVAR_preprocess$pre_op_p2y12_antagonist <- fct_relevel(EVAR_preprocess$pre_op_p2y12_antagonist,"Never", "Prior", "Current")
 
-stress_test
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#pre_op_beta_blocker
+EVAR_preprocess$pre_op_beta_blocker <- fct_relevel(EVAR_preprocess$pre_op_beta_blocker,"Never", "Prior", "Current")
 
-pre_op_p2y12_antagonist
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#pre_op_chronic_anticoagulant
+EVAR_preprocess$pre_op_chronic_anticoagulant <- fct_relevel(EVAR_preprocess$pre_op_chronic_anticoagulant,"Never", "Prior", "Current")
 
-pre_op_beta_blocker
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#ejection_fraction
+EVAR_preprocess$ejection_fraction <- fct_relevel(EVAR_preprocess$ejection_fraction,"Never", "Prior", "Current")
 
-pre_op_chronic_anticoagulant
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#aorta_neck_angle
+EVAR_preprocess$aorta_neck_angle <- fct_relevel(EVAR_preprocess$aorta_neck_angle,"Never", "Prior", "Current")
 
-ejection_fraction
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#neck_aaa_angle
+EVAR_preprocess$neck_aaa_angle <- fct_relevel(EVAR_preprocess$neck_aaa_angle,"Never", "Prior", "Current")
 
-aorta_neck_angle
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#anesthesia
+EVAR_preprocess$anesthesia <- fct_relevel(EVAR_preprocess$anesthesia,"Never", "Prior", "Current")
 
-neck_aaa_angle
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#access_right
+EVAR_preprocess$access_right <- fct_relevel(EVAR_preprocess$access_right,"Never", "Prior", "Current")
 
-anesthesia
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#access_left
+EVAR_preprocess$access_left <- fct_relevel(EVAR_preprocess$access_left,"Never", "Prior", "Current")
 
-access_right
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#right_iliac_adjunct
+EVAR_preprocess$right_iliac_adjunct <- fct_relevel(EVAR_preprocess$right_iliac_adjunct,"Never", "Prior", "Current")
 
-access_left
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#left_iliac_adjunct
+EVAR_preprocess$left_iliac_adjunct <- fct_relevel(EVAR_preprocess$left_iliac_adjunct,"Never", "Prior", "Current")
 
-right_iliac_adjunct
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#proximal_aortic_extensions
+EVAR_preprocess$proximal_aortic_extensions <- fct_relevel(EVAR_preprocess$proximal_aortic_extensions,"Never", "Prior", "Current")
 
-left_iliac_adjunct
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#right_iliac_endpoint
+EVAR_preprocess$right_iliac_endpoint <- fct_relevel(EVAR_preprocess$right_iliac_endpoint,"Never", "Prior", "Current")
 
-proximal_aortic_extensions
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#left_iliac_endpoint
+EVAR_preprocess$left_iliac_endpoint <- fct_relevel(EVAR_preprocess$left_iliac_endpoint,"Never", "Prior", "Current")
 
-right_iliac_endpoint
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#number_right
+EVAR_preprocess$number_right <- fct_relevel(EVAR_preprocess$number_right,"Never", "Prior", "Current")
 
-left_iliac_endpoint
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#distal_endpoint_right
+EVAR_preprocess$distal_endpoint_right <- fct_relevel(EVAR_preprocess$distal_endpoint_right,"Never", "Prior", "Current")
 
-number_right
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#number_left
+EVAR_preprocess$number_left <- fct_relevel(EVAR_preprocess$number_left,"Never", "Prior", "Current")
 
-distal_endpoint_right
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#distal_endpoint_left
+EVAR_preprocess$distal_endpoint_left <- fct_relevel(EVAR_preprocess$distal_endpoint_left,"Never", "Prior", "Current")
 
-number_left
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#iv_bp_support_post_op
+EVAR_preprocess$iv_bp_support_post_op <- fct_relevel(EVAR_preprocess$iv_bp_support_post_op,"Never", "Prior", "Current")
 
-distal_endpoint_left
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
-
-iv_bp_support_post_op
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
-
-discharge_status
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+#discharge_status
+EVAR_preprocess$discharge_status <- fct_relevel(EVAR_preprocess$discharge_status,"Never", "Prior", "Current")
 
 ```
 
