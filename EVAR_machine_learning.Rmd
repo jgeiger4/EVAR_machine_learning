@@ -7,15 +7,36 @@ editor_options:
   markdown: 
     wrap: 72
 ---
-Update!
-Dataset is done, and ready to go! there are 
+
+Update! Dataset is done, and ready to go!
 
 Hey Mehdi,
 
-Thanks for getting this started. The rds dataset that i provided is a pretty good clean start. The variable that we will be attempting to predict is sac_regression_12m_cat. This variable states weather The Shins aortic aneurysms sac regressed states stable or increased in size at the one-year mark. I had to do a bit of reformatting of all of the data in order to calculate this appropriately given the variability in the CT scan dates and sizes. I am confident this variable is accurate at the moment. 
+Thanks for getting this started. The rds dataset that i provided is a
+pretty good clean start. The variable that we will be attempting to
+predict is sac_regression_12m_cat. This variable states weather The
+Shins aortic aneurysms sac regressed states stable or increased in size
+at the one-year mark. I had to do a bit of reformatting of all of the
+data in order to calculate this appropriately given the variability in
+the CT scan dates and sizes. I am confident this variable is accurate at
+the moment.
 
-There are variables within the data set that are incomplete and perhaps chart reviewing to finish collecting some of this data will be important. Particularly the first couple of patients were recorded before all of the VQI variables were established and so there is some missing data there. Additionaly, the last 20 some patients I recently extracted from the VQI and so variables we manually extracted from the chart have not be collected yet. Baqir and I can help out with this. Baqir has also submitted a request for the lab values for these last 20 some patients. In addition we will be obtaining dates of death for the entire data set. I think doing an additional analysis using similar methods on survival, either length of survival or survival at 5 years will also be interesting.
+There are variables within the data set that are incomplete and perhaps
+chart reviewing to finish collecting some of this data will be
+important. Particularly the first couple of patients were recorded
+before all of the VQI variables were established and so there is some
+missing data there. Additionaly, the last 20 some patients I recently
+extracted from the VQI and so variables we manually extracted from the
+chart have not be collected yet. Baqir and I can help out with this.
+Baqir has also submitted a request for the lab values for these last 20
+some patients. In addition we will be obtaining dates of death for the
+entire data set. I think doing an additional analysis using similar
+methods on survival, either length of survival or survival at 5 years
+will also be interesting.
 
+## SETUP
+
+### Install Packages
 
 ```{r setup}
 # Installs pacman ("package manager") if needed
@@ -24,17 +45,31 @@ if (!require("pacman")) install.packages("pacman")
 #Install relevant libraries using pacman (i.e. package manager)
 
 # Use pacman to load add-on packages as desired
-pacman::p_load(pacman, rio, dplyr, forcats, janitor, ggplot2, tidyverse, mice, caret)
+pacman::p_load(pacman, 
+               # essentials
+               tidyverse, rio, caret,
+               
+               #plots
+               ggplot2, mice, missRanger,
+               
+               #machine learning
+               
+               # extras
+               forcats, janitor, explore, caTools, Metrics, VIM)
 ```
 
+### Load data
 ```{r load-data}
-EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_11_12_23.rds"
+#Sourcedir for Mehdi
+EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_12_23_23.rds"
+
 #Sourcedir for Josh
-EVARSourcedir <- "data/EVAR_cleaned_filtered_12_23_23.rds"
+#EVARSourcedir <- "data/EVAR_cleaned_filtered_12_23_23.rds"
 
 EVAR <- readRDS(EVARSourcedir)
 ```
 
+### Correct Errors
 
 ```{r correct-errors}
 #Correct errors in the EVAR dataframe
@@ -42,44 +77,55 @@ EVAR[ which(EVAR$primprocid == 798089), "height_cm"] <- 188.00
 EVAR[ which(EVAR$primprocid == 798089), "bmi"] <- 32.7
 ```
 
+### Pre-processing report
+Generate a report about the data before any pre-processing
+```{r}
+EVAR_pre_report_filename <- "Report_EVAR_Preprocess.html"
+EVAR_preprocess_report <- report(EVAR, 
+                                 output_file = EVAR_pre_report_filename,
+                                 output_dir = getwd())
+```
 
-# DATA PREPROCESSING
 
-Remove cols and rows with too many missing values
--   remove records with too many missing values (\>40%)
--   remove columns with too many missing values (\>20%)
+## Cleaning Data
+
+Remove cols and rows with too many missing values - remove records with
+too many missing values (\>40%) - remove columns with too many missing
+values (\>20%)
 
 ```{r}
 
 # Remove records with too many missing values
-#EVAR_preprocess <- EVAR[complete.cases(EVAR) | rowSums(is.na(EVAR)) <= ncol(EVAR) * 0.4, ] # 0.4 denotes removing records with more than 40% missing values
-#this can be shortened
 EVAR_preprocess <- EVAR %>%
   remove_empty(which = "rows", cutoff = 0.6) #Remove observations with more than 60% missing data
 
 # Remove columns with too many missing values
-#EVAR_preprocess <- EVAR_preprocess[, colMeans(is.na(EVAR_preprocess)) <= nrow(EVAR_preprocess) * 0.2] # 20%
 EVAR_preprocess <- EVAR %>%
   remove_empty(which = "cols", cutoff = 0.4) #Remove columns with more than 40% missing data
 
-# Remove rows 430 to 461 as they are not complete yet
-#Complete!
-#EVAR_preprocess <- EVAR_preprocess[-(430:461), ]
 ```
 
 Remove unnecessary or uninformative columns
+
 ```{r}
 EVAR_preprocess$zip_postal_code <- NULL
 EVAR_preprocess$dysrhythmia <- NULL
+EVAR_preprocess$primprocid <- NULL
 
 #removing smoking quit date as I don't know how to work with this data type with ML for now....
 #I created a years since quite smoking variable and removed the date. 
 #EVAR_preprocess$quit_smoking_date <- NULL
 ```
 
+### Data Types
 Change column data types
 
-When converting to factors make sure the ordering makes sense. For example factor levels for smoking might look something like never, quit, current. Changing the order to something like quit, current, never, could very much mess with the analysis if these factors are considered as ordinal variables, which they often are. can use fct_relevel to change these
+When converting to factors make sure the ordering makes sense. For
+example factor levels for smoking might look something like never, quit,
+current. Changing the order to something like quit, current, never,
+could very much mess with the analysis if these factors are considered
+as ordinal variables, which they often are. can use fct_relevel to
+change these
 
 ```{r}
 # Convert all character columns to factors
@@ -87,7 +133,7 @@ EVAR_preprocess <- EVAR_preprocess %>%
   mutate_if(is.character, as.factor)
 
 ```
-
+#### No and Yes variables
 'No' and 'Yes' are mostly nominal, but for consistency, we can reorder
 all factor variables with 'No' and 'Yes' to be No for level 1 and Yes
 for level 2
@@ -104,6 +150,7 @@ EVAR_preprocess <- EVAR_preprocess %>%
 
 ```
 
+#### Releveling data
 Determine which factors need to be releveled
 
 ```{r factor-variables}
@@ -135,46 +182,63 @@ for (info in factorVars_info) {
 }
 ```
 
-Based on the above output, we choose which variables to reorder and also correct some errors within the dataset.
+Based on the above output, we choose which variables to reorder and also
+correct some errors within the dataset.
 
 Correcting some errors
-aortic_graft_length_1 needs some error fixes and then convert to num
-right_iliac_graft_diameter_1 convert to number
-right_iliac_graft_length_1 and left_iliac_graft_length_1 - convert to num because has this 'Other' value
+- aortic_graft_length_1
 
+Convert to num
+- aortic_graft_length_1
+- right_iliac_graft_diameter_1
+- right_iliac_graft_length_1
+- left_iliac_graft_length_1
 
 ```{r correct-errors}
 # aortic_graft_length_1 needs some error fixes and then convert to num
 # Here we convert one of the errors from 90-30 to 90. Need to check if this is okay....
-EVAR_preprocess$aortic_graft_length_1 <- as.character(EVAR_preprocess$aortic_graft_length_1)
-EVAR_preprocess[which(EVAR_preprocess$aortic_graft_length_1 == "90-30"), "aortic_graft_length_1"] <- "90"
-EVAR_preprocess$aortic_graft_length_1 <- as.numeric(EVAR_preprocess$aortic_graft_length_1)
 
-
-# right_iliac_graft_diameter_1 to numeric
-EVAR_preprocess$right_iliac_graft_diameter_1 <- as.double(EVAR_preprocess$right_iliac_graft_diameter_1)
-
-
-# right_iliac_graft_length_1 convert to num and remove "other" option
-# Convert "Other" to NA
-for (convert in which(EVAR_preprocess$right_iliac_graft_length_1 == "Other")) {
-  EVAR_preprocess[convert, "right_iliac_graft_length_1"] <- NA
-}
-EVAR_preprocess$right_iliac_graft_length_1 <- as.numeric(EVAR_preprocess$right_iliac_graft_length_1)
-
-# left_iliac_graft_length_1 convert to num and remove "other" option
-# Convert "Other" to NA
-for (convert in which(EVAR_preprocess$left_iliac_graft_length_1 == "Other")) {
-  EVAR_preprocess[convert, "left_iliac_graft_length_1"] <- NA
-}
-EVAR_preprocess$left_iliac_graft_length_1 <- as.numeric(EVAR_preprocess$left_iliac_graft_length_1)
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(
+    # aortic_graft_length_1
+    aortic_graft_length_1 = as.character(aortic_graft_length_1), 
+    aortic_graft_length_1 = if_else(aortic_graft_length_1 == "90-30", 
+                                    "90", aortic_graft_length_1),
+    aortic_graft_length_1 = as.numeric(aortic_graft_length_1),
+    
+    
+    # right_iliac_graft_diameter_1
+    right_iliac_graft_diameter_1 = as.character(right_iliac_graft_diameter_1), 
+    right_iliac_graft_diameter_1 = if_else(right_iliac_graft_diameter_1 == "16-14.5", 
+                                           "16", right_iliac_graft_diameter_1),
+    right_iliac_graft_diameter_1 = as.numeric(right_iliac_graft_diameter_1),
+    
+    
+    #right_iliac_graft_length_1
+    right_iliac_graft_length_1 = as.character(right_iliac_graft_length_1), 
+    right_iliac_graft_length_1 = if_else(right_iliac_graft_length_1 == "Other", 
+                                           NA, right_iliac_graft_length_1),
+    right_iliac_graft_length_1 = as.numeric(right_iliac_graft_length_1),
+    
+    
+    # left_iliac_graft_length_1
+     left_iliac_graft_length_1 = as.character(left_iliac_graft_length_1), 
+    left_iliac_graft_length_1 = if_else(left_iliac_graft_length_1 == "Other", 
+                                           NA, left_iliac_graft_length_1),
+    left_iliac_graft_length_1 = as.numeric(left_iliac_graft_length_1),
+    )
 
 ```
 
-
-Variables that need to be reordered: 
-cvd, prior_chf, dysrhythmia, diabetes, smoking, prior_pci, prior_cea_cas, prior_aneurysm_repair, stress_test,pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle, neck_aaa_angle, anesthesia, access_right, access_left, right_iliac_adjunct, left_iliac_adjunct, proximal_aortic_extensions, right_iliac_endpoint, left_iliac_endpoint, number_right, distal_endpoint_right, number_left, distal_endpoint_left, iv_bp_support_post_op, discharge_status
-
+Variables that need to be reordered: cvd, prior_chf, dysrhythmia,
+diabetes, smoking, prior_pci, prior_cea_cas, prior_aneurysm_repair,
+stress_test,pre_op_p2y12_antagonist, pre_op_beta_blocker,
+pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle,
+neck_aaa_angle, anesthesia, access_right, access_left,
+right_iliac_adjunct, left_iliac_adjunct, proximal_aortic_extensions,
+right_iliac_endpoint, left_iliac_endpoint, number_right,
+distal_endpoint_right, number_left, distal_endpoint_left,
+iv_bp_support_post_op, discharge_status
 
 ```{r reorder-factors}
 
@@ -184,153 +248,114 @@ EVAR_preprocess$cvd <- fct_relevel(EVAR_preprocess$cvd,"None","Hx stroke, asympt
 #prior_chf
 EVAR_preprocess$prior_chf <- fct_relevel(EVAR_preprocess$prior_chf,"None","Asymp, hx CHF", "Mild", "Moderate")
 
-#diabetes
-EVAR_preprocess$diabetes <- fct_relevel(EVAR_preprocess$diabetes,"No","Diet","Non-insulin med", "Insulin")
+#copd
+EVAR_preprocess$copd <- fct_relevel(EVAR_preprocess$copd,"No", "On home oxygen", "On meds", "Not treated")
 
-#dialysis
-EVAR_preprocess$dialysis <- fct_relevel(EVAR_preprocess$dialysis,"No","Diet","Non-insulin med", "Insulin")
+#diabetes
+EVAR_preprocess$diabetes <- fct_relevel(EVAR_preprocess$diabetes,"None","Diet","Non-insulin meds", "Insulin")
 
 #smoking
 EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
 
 
 
-
-#prior_pci
-EVAR_preprocess$prior_pci <- fct_relevel(EVAR_preprocess$prior_pci,"Never", "Prior", "Current")
-
-#prior_cea_cas
-EVAR_preprocess$prior_cea_cas <- fct_relevel(EVAR_preprocess$prior_cea_cas,"Never", "Prior", "Current")
-
-#prior_aneurysm_repair
-EVAR_preprocess$prior_aneurysm_repair <- fct_relevel(EVAR_preprocess$prior_aneurysm_repair,"Never", "Prior", "Current")
-
-#stress_test
-EVAR_preprocess$stress_test <- fct_relevel(EVAR_preprocess$stress_test,"Never", "Prior", "Current")
-
 #pre_op_p2y12_antagonist
-EVAR_preprocess$pre_op_p2y12_antagonist <- fct_relevel(EVAR_preprocess$pre_op_p2y12_antagonist,"Never", "Prior", "Current")
+EVAR_preprocess$pre_op_p2y12_antagonist <- fct_relevel(EVAR_preprocess$pre_op_p2y12_antagonist, "None", "No", "Clopidogrel","Ticagrelor", "Prasugrel" )
 
 #pre_op_beta_blocker
-EVAR_preprocess$pre_op_beta_blocker <- fct_relevel(EVAR_preprocess$pre_op_beta_blocker,"Never", "Prior", "Current")
+EVAR_preprocess$pre_op_beta_blocker <- fct_relevel(EVAR_preprocess$pre_op_beta_blocker, "No", "No, for medical reason", "Pre-op 1-30 days", "Chronic > 30 days")
 
 #pre_op_chronic_anticoagulant
-EVAR_preprocess$pre_op_chronic_anticoagulant <- fct_relevel(EVAR_preprocess$pre_op_chronic_anticoagulant,"Never", "Prior", "Current")
+EVAR_preprocess$pre_op_chronic_anticoagulant <- fct_relevel(EVAR_preprocess$pre_op_chronic_anticoagulant, "None", "No, for medical reason", "Other", "Rivaroxaban", "Warfarin", "Dabigatran")
 
 #ejection_fraction
-EVAR_preprocess$ejection_fraction <- fct_relevel(EVAR_preprocess$ejection_fraction,"Never", "Prior", "Current")
+EVAR_preprocess$ejection_fraction <- fct_relevel(EVAR_preprocess$ejection_fraction,"Not done", "Unknown", "<30%", "30-50%", ">50%")
+
+
+# Is aorta_neck_angle the same as neck_aaa_angle? 
 
 #aorta_neck_angle
-EVAR_preprocess$aorta_neck_angle <- fct_relevel(EVAR_preprocess$aorta_neck_angle,"Never", "Prior", "Current")
-
+EVAR_preprocess$aorta_neck_angle <- fct_relevel(EVAR_preprocess$aorta_neck_angle, "< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", ">90 Degrees")
 #neck_aaa_angle
-EVAR_preprocess$neck_aaa_angle <- fct_relevel(EVAR_preprocess$neck_aaa_angle,"Never", "Prior", "Current")
+EVAR_preprocess$neck_aaa_angle <- fct_relevel(EVAR_preprocess$neck_aaa_angle,"< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", ">90 Degrees")
+
 
 #anesthesia
-EVAR_preprocess$anesthesia <- fct_relevel(EVAR_preprocess$anesthesia,"Never", "Prior", "Current")
-
-#access_right
-EVAR_preprocess$access_right <- fct_relevel(EVAR_preprocess$access_right,"Never", "Prior", "Current")
-
-#access_left
-EVAR_preprocess$access_left <- fct_relevel(EVAR_preprocess$access_left,"Never", "Prior", "Current")
-
-#right_iliac_adjunct
-EVAR_preprocess$right_iliac_adjunct <- fct_relevel(EVAR_preprocess$right_iliac_adjunct,"Never", "Prior", "Current")
-
-#left_iliac_adjunct
-EVAR_preprocess$left_iliac_adjunct <- fct_relevel(EVAR_preprocess$left_iliac_adjunct,"Never", "Prior", "Current")
+EVAR_preprocess$anesthesia <- fct_relevel(EVAR_preprocess$anesthesia,"Local", "Regional", "General")
 
 #proximal_aortic_extensions
-EVAR_preprocess$proximal_aortic_extensions <- fct_relevel(EVAR_preprocess$proximal_aortic_extensions,"Never", "Prior", "Current")
-
-#right_iliac_endpoint
-EVAR_preprocess$right_iliac_endpoint <- fct_relevel(EVAR_preprocess$right_iliac_endpoint,"Never", "Prior", "Current")
-
-#left_iliac_endpoint
-EVAR_preprocess$left_iliac_endpoint <- fct_relevel(EVAR_preprocess$left_iliac_endpoint,"Never", "Prior", "Current")
+EVAR_preprocess$proximal_aortic_extensions <- fct_relevel(EVAR_preprocess$proximal_aortic_extensions, "None", "1", "2", "3")
 
 #number_right
-EVAR_preprocess$number_right <- fct_relevel(EVAR_preprocess$number_right,"Never", "Prior", "Current")
-
-#distal_endpoint_right
-EVAR_preprocess$distal_endpoint_right <- fct_relevel(EVAR_preprocess$distal_endpoint_right,"Never", "Prior", "Current")
-
-#number_left
-EVAR_preprocess$number_left <- fct_relevel(EVAR_preprocess$number_left,"Never", "Prior", "Current")
-
-#distal_endpoint_left
-EVAR_preprocess$distal_endpoint_left <- fct_relevel(EVAR_preprocess$distal_endpoint_left,"Never", "Prior", "Current")
-
-#iv_bp_support_post_op
-EVAR_preprocess$iv_bp_support_post_op <- fct_relevel(EVAR_preprocess$iv_bp_support_post_op,"Never", "Prior", "Current")
-
-#discharge_status
-EVAR_preprocess$discharge_status <- fct_relevel(EVAR_preprocess$discharge_status,"Never", "Prior", "Current")
+EVAR_preprocess$number_right <- fct_relevel(EVAR_preprocess$number_right,"None", "1", "2", "3")
 
 ```
 
+## Data Preprocessing
 
+### Split Data
 
-
-
-Hist visualization for numeric variables BEFORE imputation. Before we
-impute missing data, we must visualize distributions of all numeric
-variables and see if they change drastically with our imputation
-strategy
-
-Hist visualization for numeric variables BEFORE imputation.
-Before we impute missing data, we must visualize distributions of all numeric variables and see if they change drastically with our imputation strategy
-
-```{r}
-# Extract column names (assuming the variables are numeric)
-numeric_vars <- sapply(EVAR_preprocess, is.numeric)
-
-# Set up a multi-plot layout
-par(mfrow = c(2, 4), cex.main = 0.8, cex.lab = 0.6)  # Adjust the layout as needed
-
-# Create histograms for all numeric variables pre imputation
-preimputationHist <- for (var in names(EVAR_preprocess)[numeric_vars]) {
-  hist(EVAR_preprocess[[var]], main = var, xlab = var, col = "lightblue", border = "black")
-}
-
-# Reset the layout to default
-par(mfrow = c(1, 1),cex.main = 1, cex.lab = 1)
-```
-
-#### DATA SPLITTING
-
-Note to future Mehdi: make sure you do NOT perform any feature selection
-or rescaling on the entire dataset. These steps must happen for each
-cross validation sequence so as to avoid data leakage. Here we shuffle
-then split to create a hold out set. Each preprocessing step will be
-done for both the train and test set to avoid data leakage
-
-```{r}
+```{r split-data}
 
 set.seed(42)
-train_percentage <- 0.8
 
-# shuffle dataset
-EVAR_preprocess <- EVAR_preprocess[sample(nrow(EVAR_preprocess)),]
+# split using caTools package
+split_sample <- sample.split(EVAR_preprocess$sac_regression_12m_cat, 
+                             SplitRatio = 0.8)
 
-indices <- createDataPartition(EVAR_preprocess$primprocid,
-                               p = train_percentage,
-                               list = FALSE)
-
-# remove primprocid column as we no longer need it
-EVAR_preprocess$primprocid <- NULL
-
-trainSet <- EVAR_preprocess[indices, ]
-testSet <- EVAR_preprocess[-indices, ]
+# Subset train and test data frames
+train_df <- subset(EVAR_preprocess, split_sample == TRUE)
+test_df <- subset(EVAR_preprocess, split_sample == FALSE)
 ```
 
-#### DATA IMPUTATION
+### Imputation
 
-11. Numeric variables imputation.
+We assume data is missing at random (MAR).
+The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations) or missRanger.
 
-The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations) for numeric variables We assume data is missing at random (MAR)
+#### Visualize missing data
+
+```{r visualize-missing}
+# Use VIM package
+traindf_missing_plot <- aggr(train_df, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(train_df), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+
+testdf_missing_plot <- aggr(test_df, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(test_df), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+
+
+```
+
+
+Now We employ both and compare
+
+```{r imputation}
+
+train_imputed = list(
+  imputed_mice <- train_df %>% mice(method = 'cart', m = 3, seed = 42) %>% complete(),
+  imputed_ranger <- train_df %>% missRanger(formula = . ~ ., 
+                                            pmm.k = 10, num.trees = 1000, 
+                                            verbose = 2, seed = 42, 
+                                            pred.var = c("sac_regression_12m_cat"))
+  )
+
+train_imputed = list(
+  imputed_mice = test_df %>% mice(method = 'cart', m = 3, seed = 42) %>% complete(),
+  imputed_ranger = train_df %>% missRanger(formula = . ~ ., 
+                                            pmm.k = 10, num.trees = 1000, 
+                                            verbose = 2, seed = 42, 
+                                            pred.var = c("sac_regression_12m_cat"))
+  )
+
+```
+
 
 ```{r}
+# Compare imputed datasets
+# Example: Compare imputation accuracy using RMSE (Root Mean Squared Error)
+rmse_mice <- rmse(train_df[, -1], complete_mice[, -1])  # calculate RMSE for MICE
+rmse_missranger <- rmse(train_df[, -1], imputed_missranger$completed.data[, -5])  # calculate RMSE for missRanger
+
+# Print results
+cat("RMSE for MICE:", rmse_mice, "\n")
+cat("RMSE for missRanger:", rmse_missranger, "\n")
 
 ```
