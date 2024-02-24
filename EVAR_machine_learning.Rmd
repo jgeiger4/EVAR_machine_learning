@@ -53,7 +53,7 @@ pacman::p_load(pacman,
                ggplot2, mice, missRanger,
                
                #machine learning
-               
+               ROSE,xgboost, ranger, naivebayes, e1071, nnet,
                
                # extras
                forcats, janitor, explore, caTools, Metrics, VIM)
@@ -414,5 +414,9 @@ test_scaled <- test_imputed %>%
 ```
 
 We have finished scaling
+
+## Model Training
+
+### Cross Validation
 
 \`\`\`
