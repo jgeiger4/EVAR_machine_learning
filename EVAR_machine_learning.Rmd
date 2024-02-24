@@ -54,6 +54,7 @@ pacman::p_load(pacman,
                
                #machine learning
                
+               
                # extras
                forcats, janitor, explore, caTools, Metrics, VIM)
 ```
@@ -320,6 +321,9 @@ EVAR_preprocess_report <- report(EVAR_preprocess,
 ### One-hot encoding
 We perform one-hot encoding for every categorical variable
 Use dummyVars from caret
+
+We also one-hot encode the outcome variable in order to transform the multi-class classification problem (3 levels: regression, stability and expansion) into two binary classification problems. Each binary outcome variable represents one of the classes versus the rest (often referred to as one-vs-rest or one-vs-all strategy
+
 ```{r one-hot-encode}
 # fullRank TRUE ensures no linear dependencies induced between the columns
 dummyEVAR <- dummyVars(" ~ .", data = EVAR_preprocess, fullRank=T)
@@ -395,18 +399,20 @@ test_imputed <- cbind(test_imputed_predictors, test_imputed_outcomes)
 
 
 ```
+### Scaling
 
+```{r}
 
-### Feature Selection
-#### Categorical Features
+# Apply scaling to numerical columns in train dataframe
+train_scaled <- train_imputed %>%
+  mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
 
-We want categorical features with the highest predictive value We do
-Chi-square analysis to find these
-
-```{r chi-sq-cat-var}
-
+# Apply scaling to numerical columns in test dataframe
+test_scaled <- test_imputed %>%
+  mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
 
 ```
-### Scaling
+
+We have finished scaling
 
 \`\`\`
