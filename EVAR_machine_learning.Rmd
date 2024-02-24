@@ -59,6 +59,7 @@ pacman::p_load(pacman,
 ```
 
 ### Load data
+
 ```{r load-data}
 #Sourcedir for Mehdi
 EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_12_23_23.rds"
@@ -75,15 +76,6 @@ EVAR <- readRDS(EVARSourcedir)
 #Correct errors in the EVAR dataframe
 EVAR[ which(EVAR$primprocid == 798089), "height_cm"] <- 188.00
 EVAR[ which(EVAR$primprocid == 798089), "bmi"] <- 32.7
-```
-
-### Pre-processing report
-Generate a report about the data before any pre-processing
-```{r}
-EVAR_pre_report_filename <- "Report_EVAR_Preprocess.html"
-EVAR_preprocess_report <- report(EVAR, 
-                                 output_file = EVAR_pre_report_filename,
-                                 output_dir = getwd())
 ```
 
 
@@ -118,6 +110,7 @@ EVAR_preprocess$primprocid <- NULL
 ```
 
 ### Data Types
+
 Change column data types
 
 When converting to factors make sure the ordering makes sense. For
@@ -130,10 +123,14 @@ change these
 ```{r}
 # Convert all character columns to factors
 EVAR_preprocess <- EVAR_preprocess %>%
-  mutate_if(is.character, as.factor)
+  mutate_if(is.character, as.factor) %>%
+  # conver to factor if unique values are less or equal to 5
+  mutate_if(function(x) is.numeric(x) && n_distinct(x) <= 5, as.factor)
 
 ```
+
 #### No and Yes variables
+
 'No' and 'Yes' are mostly nominal, but for consistency, we can reorder
 all factor variables with 'No' and 'Yes' to be No for level 1 and Yes
 for level 2
@@ -151,6 +148,7 @@ EVAR_preprocess <- EVAR_preprocess %>%
 ```
 
 #### Releveling data
+
 Determine which factors need to be releveled
 
 ```{r factor-variables}
@@ -185,14 +183,10 @@ for (info in factorVars_info) {
 Based on the above output, we choose which variables to reorder and also
 correct some errors within the dataset.
 
-Correcting some errors
-- aortic_graft_length_1
+Correcting some errors - aortic_graft_length_1
 
-Convert to num
-- aortic_graft_length_1
-- right_iliac_graft_diameter_1
-- right_iliac_graft_length_1
-- left_iliac_graft_length_1
+Convert to num - aortic_graft_length_1 - right_iliac_graft_diameter_1 -
+right_iliac_graft_length_1 - left_iliac_graft_length_1
 
 ```{r correct-errors}
 # aortic_graft_length_1 needs some error fixes and then convert to num
@@ -230,17 +224,17 @@ EVAR_preprocess <- EVAR_preprocess %>%
 
 ```
 
-Variables that need to be reordered: cvd, prior_chf, dysrhythmia,
-diabetes, smoking, prior_pci, prior_cea_cas, prior_aneurysm_repair,
-stress_test,pre_op_p2y12_antagonist, pre_op_beta_blocker,
-pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle,
-neck_aaa_angle, anesthesia, access_right, access_left,
-right_iliac_adjunct, left_iliac_adjunct, proximal_aortic_extensions,
-right_iliac_endpoint, left_iliac_endpoint, number_right,
-distal_endpoint_right, number_left, distal_endpoint_left,
-iv_bp_support_post_op, discharge_status
+Variables that need to be reordered: 
+
+age_svs, cvd, prior_chf, copd, diabetes, smoking, 
+pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, 
+aorta_neck_angle, neck_aaa_angle, 
+anesthesia, prbc_in_or_or_preop, proximal_aortic_extensions, number_right,
+ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb
 
 ```{r reorder-factors}
+#age_svs
+EVAR_preprocess$age_svs <- fct_relevel(EVAR_preprocess$age_svs,"0", "1" ,"2", "3")
 
 #cvd
 EVAR_preprocess$cvd <- fct_relevel(EVAR_preprocess$cvd,"None","Hx stroke, asymptomatic", "Hx stroke, minor deficit", "Hx stroke, major deficit")
@@ -275,13 +269,15 @@ EVAR_preprocess$ejection_fraction <- fct_relevel(EVAR_preprocess$ejection_fracti
 # Is aorta_neck_angle the same as neck_aaa_angle? 
 
 #aorta_neck_angle
-EVAR_preprocess$aorta_neck_angle <- fct_relevel(EVAR_preprocess$aorta_neck_angle, "< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", ">90 Degrees")
+EVAR_preprocess$aorta_neck_angle <- fct_relevel(EVAR_preprocess$aorta_neck_angle, "< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", "> 90 Degrees")
 #neck_aaa_angle
-EVAR_preprocess$neck_aaa_angle <- fct_relevel(EVAR_preprocess$neck_aaa_angle,"< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", ">90 Degrees")
+EVAR_preprocess$neck_aaa_angle <- fct_relevel(EVAR_preprocess$neck_aaa_angle,"< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", "> 90 Degrees")
 
 
 #anesthesia
 EVAR_preprocess$anesthesia <- fct_relevel(EVAR_preprocess$anesthesia,"Local", "Regional", "General")
+
+EVAR_preprocess$prbc_in_or_or_preop <- fct_relevel(EVAR_preprocess$prbc_in_or_or_preop, "0", "1", "2", "3", "4")
 
 #proximal_aortic_extensions
 EVAR_preprocess$proximal_aortic_extensions <- fct_relevel(EVAR_preprocess$proximal_aortic_extensions, "None", "1", "2", "3")
@@ -289,29 +285,67 @@ EVAR_preprocess$proximal_aortic_extensions <- fct_relevel(EVAR_preprocess$proxim
 #number_right
 EVAR_preprocess$number_right <- fct_relevel(EVAR_preprocess$number_right,"None", "1", "2", "3")
 
+# ltf_statin
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(ltf_statin = as.character(ltf_statin)) %>%
+  mutate(ltf_statin = factor(na_if(ltf_statin, ""), levels = c("Yes", "No, for medical reason", "No", "Non-compliant")))
+
+# ltf_beta_blocker
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(ltf_beta_blocker = as.character(ltf_beta_blocker)) %>%
+  mutate(ltf_beta_blocker = factor(na_if(ltf_beta_blocker, ""), levels = c("Yes", "No, for medical reason", "No"))) %>%
+  mutate(ltf_beta_blocker = fct_relevel(ltf_beta_blocker, "Yes", "No, for medical reason", "No")) 
+
+# ltf_ace_inhibitor_arb
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(ltf_ace_inhibitor_arb = as.character(ltf_ace_inhibitor_arb)) %>%
+  mutate(ltf_ace_inhibitor_arb = factor(na_if(ltf_ace_inhibitor_arb, ""), levels = c("Yes", "No, for medical reason", "No"))) %>%
+  mutate(ltf_ace_inhibitor_arb = fct_relevel(ltf_ace_inhibitor_arb, "Yes", "No, for medical reason", "No")) 
 ```
 
+### Pre-processing report
+
+Generate a report about the data before any pre-processing
+
+```{r}
+EVAR_pre_report_filename <- "Report_EVAR_Preprocess.html"
+EVAR_preprocess_report <- report(EVAR_preprocess, 
+                                 output_file = EVAR_pre_report_filename,
+                                 output_dir = getwd())
+```
+
+
 ## Data Preprocessing
+
+### One-hot encoding
+We perform one-hot encoding for every categorical variable
+Use dummyVars from caret
+```{r one-hot-encode}
+# fullRank TRUE ensures no linear dependencies induced between the columns
+dummyEVAR <- dummyVars(" ~ .", data = EVAR_preprocess, fullRank=T)
+EVAR_onehot <- data.frame(predict(dummyEVAR, newdata = EVAR_preprocess))
+```
+
 
 ### Split Data
 
 ```{r split-data}
 
 set.seed(42)
-
+train_test_split <- 0.8
 # split using caTools package
-split_sample <- sample.split(EVAR_preprocess$sac_regression_12m_cat, 
-                             SplitRatio = 0.8)
+split_sample <- sample.split(EVAR_onehot$sac_regression_12m_cat.Regression, 
+                             SplitRatio = train_test_split)
 
 # Subset train and test data frames
-train_df <- subset(EVAR_preprocess, split_sample == TRUE)
-test_df <- subset(EVAR_preprocess, split_sample == FALSE)
+train_df <- subset(EVAR_onehot, split_sample == TRUE)
+test_df <- subset(EVAR_onehot, split_sample == FALSE)
 ```
 
 ### Imputation
+We assume data is missing at random (MAR). 
 
-We assume data is missing at random (MAR).
-The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations) or missRanger.
+The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations).
 
 #### Visualize missing data
 
@@ -324,38 +358,55 @@ testdf_missing_plot <- aggr(test_df, col=c('navyblue','red'), numbers=TRUE, sort
 
 ```
 
+Now we employ MICE
 
-Now We employ both and compare
-
+THIS STEP TAKES 20 MINS TO COMPLETE.
 ```{r imputation}
 
-train_imputed = list(
-  imputed_mice <- train_df %>% mice(method = 'cart', m = 3, seed = 42) %>% complete(),
-  imputed_ranger <- train_df %>% missRanger(formula = . ~ ., 
-                                            pmm.k = 10, num.trees = 1000, 
-                                            verbose = 2, seed = 42, 
-                                            pred.var = c("sac_regression_12m_cat"))
-  )
+# Imputation for training data (predictor variables)
+train_imputed_predictors <- train_df %>%
+  select(-sac_regression_12m_cat.Regression, -sac_regression_12m_cat.Expansion) %>%  # Exclude the outcome variables from imputation
+  mice(method = 'cart', m = 3, maxit = 3, seed = 42) %>%
+  complete()
 
-train_imputed = list(
-  imputed_mice = test_df %>% mice(method = 'cart', m = 3, seed = 42) %>% complete(),
-  imputed_ranger = train_df %>% missRanger(formula = . ~ ., 
-                                            pmm.k = 10, num.trees = 1000, 
-                                            verbose = 2, seed = 42, 
-                                            pred.var = c("sac_regression_12m_cat"))
-  )
+# Imputation for training data (outcome variables)
+train_imputed_outcomes <- train_df %>%
+  select(sac_regression_12m_cat.Regression, sac_regression_12m_cat.Expansion) %>%  # Select the outcome variables
+  mice(method = 'cart', m = 3, maxit = 3, seed = 42) %>%
+  complete()
+
+# Combine imputed predictor variables and imputed outcome variables
+train_imputed <- cbind(train_imputed_predictors, train_imputed_outcomes)
+
+# Imputation for training data (predictor variables)
+test_imputed_predictors <- train_df %>%
+  select(-sac_regression_12m_cat.Regression, -sac_regression_12m_cat.Expansion) %>%  # Exclude the outcome variables from imputation
+  mice(method = 'cart', m = 3, maxit = 3, seed = 42) %>%
+  complete()
+
+# Imputation for training data (outcome variables)
+test_imputed_outcomes <- train_df %>%
+  select(sac_regression_12m_cat.Regression, sac_regression_12m_cat.Expansion) %>%  # Select the outcome variables
+  mice(method = 'cart', m = 3, maxit = 3, seed = 42) %>%
+  complete()
+
+# Combine imputed predictor variables and imputed outcome variables
+test_imputed <- cbind(test_imputed_predictors, test_imputed_outcomes)
+
 
 ```
 
 
-```{r}
-# Compare imputed datasets
-# Example: Compare imputation accuracy using RMSE (Root Mean Squared Error)
-rmse_mice <- rmse(train_df[, -1], complete_mice[, -1])  # calculate RMSE for MICE
-rmse_missranger <- rmse(train_df[, -1], imputed_missranger$completed.data[, -5])  # calculate RMSE for missRanger
+### Feature Selection
+#### Categorical Features
 
-# Print results
-cat("RMSE for MICE:", rmse_mice, "\n")
-cat("RMSE for missRanger:", rmse_missranger, "\n")
+We want categorical features with the highest predictive value We do
+Chi-square analysis to find these
+
+```{r chi-sq-cat-var}
+
 
 ```
+### Scaling
+
+\`\`\`
