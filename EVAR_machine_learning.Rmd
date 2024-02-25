@@ -56,7 +56,7 @@ pacman::p_load(pacman,
                ROSE,xgboost, ranger, naivebayes, e1071, nnet,
                
                # extras
-               forcats, janitor, explore, caTools, Metrics, VIM)
+               forcats, janitor, explore, caTools, Metrics, finalfit)
 ```
 
 ### Load data
@@ -79,6 +79,15 @@ EVAR[ which(EVAR$primprocid == 798089), "height_cm"] <- 188.00
 EVAR[ which(EVAR$primprocid == 798089), "bmi"] <- 32.7
 ```
 
+Let's get a glimpse of the dataframe as it is now
+Finalfit is a great package to do this
+ff_glimpse() returns a list containing dataframes for continous and categorical vars
+It gives mean, min, max, and na_counts and na_percent
+
+```{r EVAR-ff-glimpse}
+EVAR_glimpse <- ff_glimpse(EVAR)
+```
+
 
 ## Cleaning Data
 
@@ -90,11 +99,11 @@ values (\>20%)
 
 # Remove records with too many missing values
 EVAR_preprocess <- EVAR %>%
-  remove_empty(which = "rows", cutoff = 0.6) #Remove observations with more than 60% missing data
+  select(which(colMeans(is.na(.)) <= 0.6)) #Remove observations with more than 60% missing data
 
 # Remove columns with too many missing values
 EVAR_preprocess <- EVAR %>%
-  remove_empty(which = "cols", cutoff = 0.4) #Remove columns with more than 40% missing data
+  select(which(colMeans(is.na(.)) <= 0.4)) #Remove columns with more than 40% missing data
 
 ```
 
@@ -184,10 +193,12 @@ for (info in factorVars_info) {
 Based on the above output, we choose which variables to reorder and also
 correct some errors within the dataset.
 
+#### Convert to numeric
+
 Correcting some errors - aortic_graft_length_1
 
-Convert to num - aortic_graft_length_1 - right_iliac_graft_diameter_1 -
-right_iliac_graft_length_1 - left_iliac_graft_length_1
+Convert to num:
+aortic_graft_length_1, right_iliac_graft_diameter_1, right_iliac_graft_length_1, left_iliac_graft_length_1
 
 ```{r correct-errors}
 # aortic_graft_length_1 needs some error fixes and then convert to num
@@ -222,14 +233,13 @@ EVAR_preprocess <- EVAR_preprocess %>%
                                            NA, left_iliac_graft_length_1),
     left_iliac_graft_length_1 = as.numeric(left_iliac_graft_length_1),
     )
-
 ```
 
 Variables that need to be reordered: 
 
 age_svs, cvd, prior_chf, copd, diabetes, smoking, 
 pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, 
-aorta_neck_angle, neck_aaa_angle, 
+aorta_neck_angle, neck_aaa_angle,
 anesthesia, prbc_in_or_or_preop, proximal_aortic_extensions, number_right,
 ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb
 
@@ -304,11 +314,18 @@ EVAR_preprocess <- EVAR_preprocess %>%
   mutate(ltf_ace_inhibitor_arb = fct_relevel(ltf_ace_inhibitor_arb, "Yes", "No, for medical reason", "No")) 
 ```
 
+Now we generate a glimpse into EVAR_preprocess
+```{r EVAR-preprocess-ff-glimpse}
+EVAR_preprocess_glimpse <- ff_glimpse(EVAR_preprocess)
+```
+
+
 ### Pre-processing report
 
-Generate a report about the data before any pre-processing
+Generate a report about the data before any pre-processing steps like scaling, and imputation
+explore is a nice pkg with function report(). Generates plots and summary stats for all vars in database.
 
-```{r}
+```{r pre-process-report}
 EVAR_pre_report_filename <- "Report_EVAR_Preprocess.html"
 EVAR_preprocess_report <- report(EVAR_preprocess, 
                                  output_file = EVAR_pre_report_filename,
@@ -326,7 +343,7 @@ We also one-hot encode the outcome variable in order to transform the multi-clas
 
 ```{r one-hot-encode}
 # fullRank TRUE ensures no linear dependencies induced between the columns
-dummyEVAR <- dummyVars(" ~ .", data = EVAR_preprocess, fullRank=T)
+dummyEVAR <- dummyVars(" ~ .", data = EVAR_preprocess, fullRank=F)
 EVAR_onehot <- data.frame(predict(dummyEVAR, newdata = EVAR_preprocess))
 ```
 
@@ -336,10 +353,11 @@ EVAR_onehot <- data.frame(predict(dummyEVAR, newdata = EVAR_preprocess))
 ```{r split-data}
 
 set.seed(42)
-train_test_split <- 0.8
+
 # split using caTools package
 split_sample <- sample.split(EVAR_onehot$sac_regression_12m_cat.Regression, 
-                             SplitRatio = train_test_split)
+                             # 80 - 20 split
+                             SplitRatio = 0.8)
 
 # Subset train and test data frames
 train_df <- subset(EVAR_onehot, split_sample == TRUE)
@@ -348,6 +366,11 @@ test_df <- subset(EVAR_onehot, split_sample == FALSE)
 
 ### Imputation
 We assume data is missing at random (MAR). 
+
+```{r train-ff-glimpse}
+train_df_glimpse <- ff_glimpse(train_df)
+```
+
 
 The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations).
 
@@ -362,61 +385,67 @@ testdf_missing_plot <- aggr(test_df, col=c('navyblue','red'), numbers=TRUE, sort
 
 ```
 
+#### Missingness Pattern
+Use md.pattern from mice pkg
+We can also use missing_pattern() from finalfit
+
+```{r missingness-pattern}
+missingnesspatterndf <- md.pattern(train_df, plot = FALSE)
+
+# num rows is the number of missing patterns
+print(nrow(missingnesspatterndf))
+
+```
+
+
+
 Now we employ MICE
 
 THIS STEP TAKES 20 MINS TO COMPLETE.
+
+Can vary the number of iterations using Maxit
+Can vary the number of imputed sets MICE makes using m
+MICE imputes both categorical and numerical variables
+
 ```{r imputation}
 
-# Imputation for training data (predictor variables)
-train_imputed_predictors <- train_df %>%
-  select(-sac_regression_12m_cat.Regression, -sac_regression_12m_cat.Expansion) %>%  # Exclude the outcome variables from imputation
-  mice(method = 'cart', m = 3, maxit = 3, seed = 42) %>%
+# Impute missing values in the train dataset
+traindf_imputed <- train_df %>%
+  mice(method = 'cart', m = 1, maxit = 1) %>%
+  densityplot() %>%
   complete()
 
-# Imputation for training data (outcome variables)
-train_imputed_outcomes <- train_df %>%
-  select(sac_regression_12m_cat.Regression, sac_regression_12m_cat.Expansion) %>%  # Select the outcome variables
-  mice(method = 'cart', m = 3, maxit = 3, seed = 42) %>%
+# Impute missing values in the train dataset
+testdf_imputed <- test_df %>%
+  mice(method = 'cart', m = 1, maxit = 1) %>%
+  densityplot() %>%
   complete()
 
-# Combine imputed predictor variables and imputed outcome variables
-train_imputed <- cbind(train_imputed_predictors, train_imputed_outcomes)
-
-# Imputation for training data (predictor variables)
-test_imputed_predictors <- train_df %>%
-  select(-sac_regression_12m_cat.Regression, -sac_regression_12m_cat.Expansion) %>%  # Exclude the outcome variables from imputation
-  mice(method = 'cart', m = 3, maxit = 3, seed = 42) %>%
-  complete()
-
-# Imputation for training data (outcome variables)
-test_imputed_outcomes <- train_df %>%
-  select(sac_regression_12m_cat.Regression, sac_regression_12m_cat.Expansion) %>%  # Select the outcome variables
-  mice(method = 'cart', m = 3, maxit = 3, seed = 42) %>%
-  complete()
-
-# Combine imputed predictor variables and imputed outcome variables
-test_imputed <- cbind(test_imputed_predictors, test_imputed_outcomes)
-
-
+# Now you have imputed versions of both train and test datasets
 ```
+
 ### Scaling
 
 ```{r}
 
 # Apply scaling to numerical columns in train dataframe
-train_scaled <- train_imputed %>%
+train_scaled <- traindf_imputed %>%
   mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
 
 # Apply scaling to numerical columns in test dataframe
-test_scaled <- test_imputed %>%
+test_scaled <- testdf_imputed %>%
   mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
 
 ```
 
-We have finished scaling
+We have finished preprocessing :)
+```{r}
+EVAR_post_report_filename <- "Report_EVAR_Postprocess.html"
+EVAR_postprocess_report <- report(train_scaled, 
+                                 output_file = EVAR_post_report_filename,
+                                 output_dir = getwd())
+```
 
-## Model Training
 
-### Cross Validation
 
 \`\`\`
