@@ -2,9 +2,11 @@
 title: "EVAR_machine_learning"
 author: "Joshua Geiger and Mohammed Mehdi Shahid"
 date: "`r Sys.Date()`"
-output: html_document
-editor_options: 
-  markdown: 
+output:
+  word_document: default
+  html_document: default
+editor_options:
+  markdown:
     wrap: 72
 ---
 
@@ -47,16 +49,16 @@ if (!require("pacman")) install.packages("pacman")
 # Use pacman to load add-on packages as desired
 pacman::p_load(pacman, 
                # essentials
-               tidyverse, rio, caret,
+               tidyverse, rio, caret,finalfit,
                
                #plots
                ggplot2, mice, missRanger,
                
                #machine learning
-               ROSE,xgboost, ranger, naivebayes, e1071, nnet,
+               pROC, xgboost, ranger, naivebayes, e1071, nnet,
                
                # extras
-               forcats, janitor, explore, caTools, Metrics, finalfit)
+               forcats, janitor, explore, caTools, Metrics, VIM)
 ```
 
 ### Load data
@@ -355,60 +357,21 @@ demographics_table1 <- EVAR_preprocess %>%
   na_include_dependent = TRUE,
   total_col = TRUE,
   add_col_totals = TRUE,
-  p = TRUE
+  p = TRUE,
+  p_cont_para = "aov",
+  p_cat = "chisq"
   )
 
+
 ```
-
-## Data Preprocessing
-
-### One-hot encoding
-We perform one-hot encoding for every categorical variable
-Use dummyVars from caret
-
-We also one-hot encode the outcome variable in order to transform the mtulti-class classification problem (3 levels: regression, stability and expansion) into two binary classification problems. Each binary outcome variable represents one of the classes versus the rest (often referred to as one-vs-rest or one-vs-all strategy
-
-```{r one-hot-encode}
-# fullRank TRUE ensures no linear dependencies induced between the columns
-dummyEVAR <- dummyVars(" ~ .", data = EVAR_preprocess, fullRank=F)
-EVAR_onehot <- data.frame(predict(dummyEVAR, newdata = EVAR_preprocess))
-```
-
-### Split Data
-
-```{r split-data}
-
-set.seed(42)
-
-# split using caTools package
-split_sample <- sample.split(EVAR_onehot$sac_regression_12m_cat.Regression, 
-                             # 80 - 20 split
-                             SplitRatio = 0.8)
-
-# Subset train and test data frames
-train_df <- subset(EVAR_onehot, split_sample == TRUE)
-test_df <- subset(EVAR_onehot, split_sample == FALSE)
-```
-
-### Imputation
-We assume data is missing at random (MAR). 
-
-```{r train-ff-glimpse}
-train_df_glimpse <- ff_glimpse(train_df)
-```
-
-
-The imputation strategy is to use MICE (Multivariate Imputation via Chained Equations).
+### Missing Data Analysis
+We want to impute some values. We should determine the nature of our missing data
 
 #### Visualize missing data
 
 ```{r visualize-missing}
 # Use VIM package
-traindf_missing_plot <- aggr(train_df, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(train_df), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
-
-testdf_missing_plot <- aggr(test_df, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(test_df), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
-
-
+EVAR_preprocess_missing_plot <- aggr(EVAR_preprocess, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(EVAR_preprocess), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
 ```
 
 #### Missingness Pattern
@@ -416,48 +379,89 @@ Use md.pattern from mice pkg
 We can also use missing_pattern() from finalfit
 
 ```{r missingness-pattern}
-missingnesspatterndf <- md.pattern(train_df, plot = FALSE)
+missingnesspatterndf <- md.pattern(EVAR_preprocess, plot = FALSE)
 
 # num rows is the number of missing patterns
-print(nrow(missingnesspatterndf))
-
+cat("Num of Missing Patterns: ", 
+          nrow(missingnesspatterndf), "\n")
 ```
 
-Now we employ MICE
 
-THIS STEP TAKES 20 MINS TO COMPLETE.
+## Data Preprocessing
 
-Can vary the number of iterations using Maxit
-Can vary the number of imputed sets MICE makes using m
-MICE imputes both categorical and numerical variables
+Pipeline: Split -> Impute -> One-hot Encode -> Scale
+
+### Split Data
+Always split first :)
+
+```{r split-data}
+set.seed(42)
+
+# split using caTools package
+split_sample <- sample.split(EVAR_preprocess$sac_regression_12m_cat, 
+                             # 80 - 20 split
+                             SplitRatio = 0.8)
+
+# Subset train and test data frames
+train_df <- subset(EVAR_preprocess, split_sample == TRUE)
+test_df <- subset(EVAR_preprocess, split_sample == FALSE)
+```
+
+
+### Imputation
+
+Get a glimpse of training data
+```{r train-ff-glimpse}
+train_df_glimpse <- ff_glimpse(train_df)
+```
+
+We assume data missing at random (MAR)
+
+The imputation strategy is to use missRanger - a fast multiple imputation method using randomForests
+Literature shows it is better than standard MICE: 
+
+Suh H, Song J.  A comparison of imputation methods using machine learning models.  CSAM 2023;30:331-341.  https://doi.org/10.29220/CSAM.2023.30.3.331
+
+
 
 ```{r imputation}
+# missRanger
 
-# Impute missing values in the train dataset
-traindf_imputed <- train_df %>%
-  mice(method = 'cart', m = 1, maxit = 1) %>%
-  densityplot() %>%
-  complete()
+train_imputed <- missRanger(data =  train_df, 
+                           # impute all variables using all variables except outcome
+                           formula = . ~ . -sac_regression_12m_cat, 
+                           pmm.k = 3, num.trees = 100)
 
-# Impute missing values in the train dataset
-testdf_imputed <- test_df %>%
-  mice(method = 'cart', m = 1, maxit = 1) %>%
-  densityplot() %>%
-  complete()
-
-# Now you have imputed versions of both train and test datasets
+test_imputed <- missRanger(data =  test_df, 
+                           # impute all variables using all variables except outcome
+                           formula = . ~ . -sac_regression_12m_cat, 
+                           pmm.k = 3, num.trees = 100)
 ```
+
+### One-hot encoding
+We perform one-hot encoding for every categorical variable
+Use dummyVars from caret
+
+We also one-hot encode the outcome variable in order to transform the multi-class classification problem (3 levels: regression, stability and expansion) into three binary classification problems. Each binary outcome variable represents one of the classes versus the rest (often referred to as one-vs-rest or one-vs-all strategy
+
+```{r one-hot-encode}
+# fullRank TRUE ensures no linear dependencies induced between the columns
+dummyEVAR <- dummyVars(" ~ .", data = EVAR_preprocess, fullRank=F, dummy_na = TRUE)
+train_onehot <- data.frame(predict(dummyEVAR, newdata = train_imputed))
+test_onehot <- data.frame(predict(dummyEVAR, newdata = test_imputed))
+```
+
 
 ### Scaling
 
 ```{r}
 
 # Apply scaling to numerical columns in train dataframe
-train_scaled <- traindf_imputed %>%
+train_scaled <- train_onehot %>%
   mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
 
 # Apply scaling to numerical columns in test dataframe
-test_scaled <- testdf_imputed %>%
+test_scaled <- test_onehot %>%
   mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
 
 ```
@@ -469,5 +473,4 @@ EVAR_postprocess_report <- report(train_scaled,
                                  output_file = EVAR_post_report_filename,
                                  output_dir = getwd())
 ```
-
 \`\`\`
