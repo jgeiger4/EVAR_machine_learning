@@ -332,6 +332,33 @@ EVAR_preprocess_report <- report(EVAR_preprocess,
                                  output_dir = getwd())
 ```
 
+### Demographics Table
+
+Generate a table1
+Finalfit has a function called summary_factorlist() for this
+It includes numeric and categorical variables, despite the name...
+We want to include the missing data
+
+Stratify against our outcome variable: sac_regression_12m_cat
+
+Currently, there are some warnings: Chi-sq test may be incorrect
+
+```{r table1-demographics}
+
+EVAR_preprocess_predictorsdf <- EVAR_preprocess %>%
+  select(-sac_regression_12m_cat)
+
+demographics_table1 <- EVAR_preprocess %>%
+  summary_factorlist(dependent = "sac_regression_12m_cat", # outcome variable
+  explanatory = names(.)[names(.) != "sac_regression_12m_cat"] , #predictors
+  na_include = TRUE,
+  na_include_dependent = TRUE,
+  total_col = TRUE,
+  add_col_totals = TRUE,
+  p = TRUE
+  )
+
+```
 
 ## Data Preprocessing
 
@@ -339,14 +366,13 @@ EVAR_preprocess_report <- report(EVAR_preprocess,
 We perform one-hot encoding for every categorical variable
 Use dummyVars from caret
 
-We also one-hot encode the outcome variable in order to transform the multi-class classification problem (3 levels: regression, stability and expansion) into two binary classification problems. Each binary outcome variable represents one of the classes versus the rest (often referred to as one-vs-rest or one-vs-all strategy
+We also one-hot encode the outcome variable in order to transform the mtulti-class classification problem (3 levels: regression, stability and expansion) into two binary classification problems. Each binary outcome variable represents one of the classes versus the rest (often referred to as one-vs-rest or one-vs-all strategy
 
 ```{r one-hot-encode}
 # fullRank TRUE ensures no linear dependencies induced between the columns
 dummyEVAR <- dummyVars(" ~ .", data = EVAR_preprocess, fullRank=F)
 EVAR_onehot <- data.frame(predict(dummyEVAR, newdata = EVAR_preprocess))
 ```
-
 
 ### Split Data
 
@@ -397,8 +423,6 @@ print(nrow(missingnesspatterndf))
 
 ```
 
-
-
 Now we employ MICE
 
 THIS STEP TAKES 20 MINS TO COMPLETE.
@@ -445,7 +469,5 @@ EVAR_postprocess_report <- report(train_scaled,
                                  output_file = EVAR_post_report_filename,
                                  output_dir = getwd())
 ```
-
-
 
 \`\`\`
