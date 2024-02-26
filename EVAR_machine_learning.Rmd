@@ -58,7 +58,7 @@ pacman::p_load(pacman,
                pROC, xgboost, ranger, naivebayes, e1071, nnet,
                
                # extras
-               forcats, janitor, explore, caTools, Metrics, VIM)
+               forcats, janitor, explore, caTools, Metrics, VIM, car)
 ```
 
 ### Load data
@@ -91,7 +91,7 @@ EVAR_glimpse <- ff_glimpse(EVAR)
 ```
 
 
-## Cleaning Data
+## CLEANING DATA
 
 Remove cols and rows with too many missing values - remove records with
 too many missing values (\>40%) - remove columns with too many missing
@@ -200,7 +200,7 @@ correct some errors within the dataset.
 Correcting some errors - aortic_graft_length_1
 
 Convert to num:
-aortic_graft_length_1, right_iliac_graft_diameter_1, right_iliac_graft_length_1, left_iliac_graft_length_1
+aortic_graft_length_1, right_iliac_graft_diameter_1, right_iliac_graft_length_1, left_iliac_graft_length_1, renal_svs, age_svs
 
 ```{r correct-errors}
 # aortic_graft_length_1 needs some error fixes and then convert to num
@@ -230,25 +230,31 @@ EVAR_preprocess <- EVAR_preprocess %>%
     
     
     # left_iliac_graft_length_1
-     left_iliac_graft_length_1 = as.character(left_iliac_graft_length_1), 
+    left_iliac_graft_length_1 = as.character(left_iliac_graft_length_1), 
     left_iliac_graft_length_1 = if_else(left_iliac_graft_length_1 == "Other", 
                                            NA, left_iliac_graft_length_1),
     left_iliac_graft_length_1 = as.numeric(left_iliac_graft_length_1),
+    
+    # renal_svs
+    renal_svs = as.numeric(renal_svs),
+    
+    # age_svs
+    age_svs = as.numeric(age_svs),
     )
 ```
 
+#### Reorder factors
 Variables that need to be reordered: 
 
-age_svs, cvd, prior_chf, copd, diabetes, smoking, 
+dysrhy, cvd, prior_chf, copd, diabetes, smoking, 
 pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, 
 aorta_neck_angle, neck_aaa_angle,
-anesthesia, prbc_in_or_or_preop, proximal_aortic_extensions, number_right,
-ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb
+anesthesia, prbc_in_or_or_preop, proximal_aortic_extensions, number_right, number_right
+ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb, right_iliac_endpoint, left_iliac_endpoint
 
 ```{r reorder-factors}
-#age_svs
-EVAR_preprocess$age_svs <- fct_relevel(EVAR_preprocess$age_svs,"0", "1" ,"2", "3")
-
+# dysrhy
+EVAR_preprocess$dysrhy <- fct_relevel(EVAR_preprocess$dysrhy, "No", "Yes, atrial", "Other")
 #cvd
 EVAR_preprocess$cvd <- fct_relevel(EVAR_preprocess$cvd,"None","Hx stroke, asymptomatic", "Hx stroke, minor deficit", "Hx stroke, major deficit")
 
@@ -263,7 +269,6 @@ EVAR_preprocess$diabetes <- fct_relevel(EVAR_preprocess$diabetes,"None","Diet","
 
 #smoking
 EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
-
 
 
 #pre_op_p2y12_antagonist
@@ -296,7 +301,16 @@ EVAR_preprocess$prbc_in_or_or_preop <- fct_relevel(EVAR_preprocess$prbc_in_or_or
 EVAR_preprocess$proximal_aortic_extensions <- fct_relevel(EVAR_preprocess$proximal_aortic_extensions, "None", "1", "2", "3")
 
 #number_right
-EVAR_preprocess$number_right <- fct_relevel(EVAR_preprocess$number_right,"None", "1", "2", "3")
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(number_right = fct_relevel(number_right,"None", "1", "2", "3")) %>%
+  mutate(number_right = fct_recode(number_right, "0" = "None")) %>%
+  mutate(number_right = as.numeric(as.character(number_right)))
+
+# number_left
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(number_left = fct_relevel(number_left,"None", "1", "2", "3")) %>%
+  mutate(number_left = fct_recode(number_left, "0" = "None")) %>%
+  mutate(number_left = as.numeric(as.character(number_left)))
 
 # ltf_statin
 EVAR_preprocess <- EVAR_preprocess %>%
@@ -314,7 +328,15 @@ EVAR_preprocess <- EVAR_preprocess %>%
   mutate(ltf_ace_inhibitor_arb = as.character(ltf_ace_inhibitor_arb)) %>%
   mutate(ltf_ace_inhibitor_arb = factor(na_if(ltf_ace_inhibitor_arb, ""), levels = c("Yes", "No, for medical reason", "No"))) %>%
   mutate(ltf_ace_inhibitor_arb = fct_relevel(ltf_ace_inhibitor_arb, "Yes", "No, for medical reason", "No")) 
+
+# right_iliac_endpoint
+EVAR_preprocess$right_iliac_endpoint <- fct_relevel(EVAR_preprocess$right_iliac_endpoint, "None","Common", "External, Intended", "External, Unintended")
+
+# left_iliac_endpoint
+EVAR_preprocess$left_iliac_endpoint <- fct_relevel(EVAR_preprocess$left_iliac_endpoint, "None","Common", "External, Intended", "External, Unintended")
+  
 ```
+
 
 Now we generate a glimpse into EVAR_preprocess
 ```{r EVAR-preprocess-ff-glimpse}
@@ -364,6 +386,8 @@ demographics_table1 <- EVAR_preprocess %>%
 
 
 ```
+
+
 ### Missing Data Analysis
 We want to impute some values. We should determine the nature of our missing data
 
@@ -387,9 +411,9 @@ cat("Num of Missing Patterns: ",
 ```
 
 
-## Data Preprocessing
+## PRE-PROCESS
 
-Pipeline: Split -> Impute -> One-hot Encode -> Scale
+Pipeline: Split -> Impute -> One-hot Encode -> Scale -> Feature Selection
 
 ### Split Data
 Always split first :)
@@ -398,9 +422,9 @@ Always split first :)
 set.seed(42)
 
 # split using caTools package
-split_sample <- sample.split(EVAR_preprocess$sac_regression_12m_cat, 
-                             # 80 - 20 split
-                             SplitRatio = 0.8)
+split_sample <- sample.split(EVAR_preprocess$race, 
+                             # 70 - 30 split
+                             SplitRatio = 0.7)
 
 # Subset train and test data frames
 train_df <- subset(EVAR_preprocess, split_sample == TRUE)
@@ -438,17 +462,92 @@ test_imputed <- missRanger(data =  test_df,
                            pmm.k = 3, num.trees = 100)
 ```
 
-### One-hot encoding
-We perform one-hot encoding for every categorical variable
-Use dummyVars from caret
+### Non-zero variance Feature Selection
 
-We also one-hot encode the outcome variable in order to transform the multi-class classification problem (3 levels: regression, stability and expansion) into three binary classification problems. Each binary outcome variable represents one of the classes versus the rest (often referred to as one-vs-rest or one-vs-all strategy
+Remove variables with zero variance
+```{r zero-variance-vars}
 
-```{r one-hot-encode}
-# fullRank TRUE ensures no linear dependencies induced between the columns
-dummyEVAR <- dummyVars(" ~ .", data = EVAR_preprocess, fullRank=F, dummy_na = TRUE)
-train_onehot <- data.frame(predict(dummyEVAR, newdata = train_imputed))
-test_onehot <- data.frame(predict(dummyEVAR, newdata = test_imputed))
+nzv <- nearZeroVar(train_imputed, saveMetrics= T)
+
+# Shortlist of NZV features
+nzv_to_remove <- nzv %>% 
+    filter(zeroVar==T | nzv==T) %>% 
+    rownames_to_column("col_names") 
+    
+# Let's remove our NZV variables
+train_feature_select <- train_imputed %>% 
+  select(-pull(nzv_to_remove, col_names))
+
+test_feature_select <- test_imputed %>% 
+  select(-pull(nzv_to_remove, col_names))
+```
+
+
+### Correlated Vars
+Remove highly correlated variables
+```{r}
+train_cor <- cor(train_feature_select %>% 
+                   select(-sac_regression_12m_cat) %>%
+                   summarise(across(where(is.numeric))))
+highly_corr_vars <- findCorrelation(train_cor, cutoff = .75)
+
+train_cor_feature_select <- train_feature_select[,-highly_corr_vars]
+test_cor_feature_select <- test_feature_select[,-highly_corr_vars]
+```
+
+
+### Ordinal Variables
+```{r}
+# To make sure ordering of each factor variable makes sense, we must investigate each to determine which need to reordered with fct_relevel
+# Extract information about factor variables
+ordinalfactorVars_info <- lapply(names(train_cor_feature_select), function(column_name) {
+  column <- train_cor_feature_select[[column_name]]
+  
+  if (is.factor(column)) {
+    levels_info <- levels(column)
+    return(list(
+      variable_name = column_name,
+      num_levels = length(levels_info),
+      levels = levels_info
+    ))
+  } else {
+    return(NULL)  # Not a factor variable
+  }
+})
+
+# Remove NULL elements (non-factor variables) from the list
+ordinalfactorVars_info <- ordinalfactorVars_info[sapply(train_cor_feature_select, function(x) !is.null(x))]
+
+# Print the information
+for (info in ordinalfactorVars_info) {
+  cat("Variable Name:", info$variable_name, "\n")
+  cat("Number of Levels:", info$num_levels, "\n")
+  cat("Levels:", paste(info$levels, collapse = "; "), "\n\n")
+}
+```
+Based on the above, ordinal vars are:
+dysrhy, functional_status, cad_symptoms, 
+copd, diabetes, smoking, prior_cabg, prior_pci, stress_test, pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle, neck_aaa_angle, discharge_p2y12_antagonist, ltf_asa, ltf_p2y12_antagonist, ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb, ltf_anticoagulant
+
+Here we convert the ordinal variables to be numeric to preserve ordinality. It also helps to reduce dimensionality when we one-hot encode all the other categorical variables
+
+```{r ordinal-vars}
+# List of ordinal factor variables
+ordinal_factors <- c("dysrhy", "functional_status", "cad_symptoms", 
+                     "copd", "diabetes", "smoking", "prior_cabg", "prior_pci", 
+                     "stress_test", "pre_op_p2y12_antagonist", "pre_op_beta_blocker", 
+                     "pre_op_chronic_anticoagulant", "ejection_fraction", 
+                     "aorta_neck_angle", "neck_aaa_angle", 
+                     "discharge_p2y12_antagonist", "ltf_asa", "ltf_p2y12_antagonist", 
+                     "ltf_statin", "ltf_beta_blocker", "ltf_ace_inhibitor_arb", 
+                     "ltf_anticoagulant")
+
+# Convert each ordinal factor variable to numeric preserving ordinality
+for (factor_var in ordinal_factors) {
+  train_cor_feature_select[[factor_var]] <- as.numeric((train_cor_feature_select[[factor_var]]))
+  test_cor_feature_select[[factor_var]] <- as.numeric((test_cor_feature_select[[factor_var]]))
+
+}
 ```
 
 
@@ -457,14 +556,52 @@ test_onehot <- data.frame(predict(dummyEVAR, newdata = test_imputed))
 ```{r}
 
 # Apply scaling to numerical columns in train dataframe
-train_scaled <- train_onehot %>%
+train_scaled <- train_cor_feature_select %>%
   mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
 
 # Apply scaling to numerical columns in test dataframe
-test_scaled <- test_onehot %>%
+test_scaled <- test_cor_feature_select %>%
   mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
 
 ```
+
+
+### One-hot encoding
+We perform one-hot encoding for every categorical variable
+Use dummyVars from caret
+
+We also one-hot encode the outcome variable in order to transform the multi-class classification problem (3 levels: regression, stability and expansion) into three binary classification problems. Each binary outcome variable represents one of the classes versus the rest (often referred to as one-vs-rest or one-vs-all strategy
+
+```{r one-hot-encode}
+# fullRank TRUE ensures no linear dependencies induced between the columns
+dummyEVAR <- dummyVars(" ~ .", data = train_cor_feature_select, fullRank=T, dummy_na = TRUE)
+train_onehot <- data.frame(predict(dummyEVAR, newdata = train_feature_select))
+test_onehot <- data.frame(predict(dummyEVAR, newdata = test_feature_select))
+```
+
+### NZV for one-hot encode
+
+Perform nzv again as we have one-hot encoded categorical variables. Some have no variance!
+
+Remove variables with zero variance
+```{r zero-variance-2-vars}
+
+nzv2 <- nearZeroVar(train_onehot, saveMetrics= T)
+
+# Shortlist of NZV features
+nzv_to_remove2 <- nzv2 %>% 
+    filter(zeroVar == T | nzv == T) %>% 
+    rownames_to_column("col_names") 
+    
+# Let's remove our NZV variables
+train_final <- train_onehot %>% 
+  select(-pull(nzv_to_remove2, col_names))
+
+test_final <- test_onehot %>% 
+  select(-pull(nzv_to_remove2, col_names))
+```
+
+
 
 We have finished preprocessing :)
 ```{r}
@@ -473,4 +610,35 @@ EVAR_postprocess_report <- report(train_scaled,
                                  output_file = EVAR_post_report_filename,
                                  output_dir = getwd())
 ```
+
+
+```{r correlation-matrix}
+# Calculate correlation matrix
+correlation_matrix <- cor(train_final[, -which(names(train_final) == "sac_regression_12m_cat.Regression")])
+
+# Visualize correlation matrix as a heatmap
+heatmap(correlation_matrix)
+
+```
+
+
+## MODEL TRAINING
+
+### Cross Validation
+```{r cross-val}
+repeatedcv_trControl <- trainControl(method = "repeatedcv", 
+                                     number = 5 , repeats = 10, # 5-fold ; 5 repeats
+                                     classProbs = TRUE, # to get class probabilities for ROC curve
+                                     summaryFunction = twoClassSummary, # for binary classification
+                                     savePredictions = TRUE, # Save predictions for metrics calculation
+                          
+                                     returnData = FALSE, # Do not return the resampled data
+                                     returnResamp = "final", # Only return the final resample result
+                                     selectionFunction = "best", # Use the best model based on AUC
+                                     allowParallel = TRUE) # Enable parallel processing if available
+
+set.seed(42)
+```
+
+
 \`\`\`
