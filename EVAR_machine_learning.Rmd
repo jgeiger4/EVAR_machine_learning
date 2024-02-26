@@ -36,6 +36,13 @@ entire data set. I think doing an additional analysis using similar
 methods on survival, either length of survival or survival at 5 years
 will also be interesting.
 
+
+02/26 Meeting (Baqir, Mehdi and Josh)
+- Josh to check missing sac_regression data
+- Reorder nominal and ordinal variables
+- Remove some variables like physician
+- Use one-year and 5 year as outcomes too
+
 ## SETUP
 
 ### Install Packages
@@ -254,86 +261,87 @@ ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb, right_iliac_endpoint, left_
 
 ```{r reorder-factors}
 # dysrhy
-EVAR_preprocess$dysrhy <- fct_relevel(EVAR_preprocess$dysrhy, "No", "Yes, atrial", "Other")
+EVAR_preprocess$dysrhy <- fct_relevel(EVAR_preprocess$dysrhy, "No", "Yes, atrial", "Other") #N
+
 #cvd
-EVAR_preprocess$cvd <- fct_relevel(EVAR_preprocess$cvd,"None","Hx stroke, asymptomatic", "Hx stroke, minor deficit", "Hx stroke, major deficit")
+EVAR_preprocess$cvd <- fct_relevel(EVAR_preprocess$cvd,"None","Hx stroke, asymptomatic", "Hx stroke, minor deficit", "Hx stroke, major deficit") #O
 
 #prior_chf
-EVAR_preprocess$prior_chf <- fct_relevel(EVAR_preprocess$prior_chf,"None","Asymp, hx CHF", "Mild", "Moderate")
+EVAR_preprocess$prior_chf <- fct_relevel(EVAR_preprocess$prior_chf,"None","Asymp, hx CHF", "Mild", "Moderate") #O
 
 #copd
-EVAR_preprocess$copd <- fct_relevel(EVAR_preprocess$copd,"No", "On home oxygen", "On meds", "Not treated")
+EVAR_preprocess$copd <- fct_relevel(EVAR_preprocess$copd,"No","Not treated","On meds", "On home oxygen") #O
 
 #diabetes
-EVAR_preprocess$diabetes <- fct_relevel(EVAR_preprocess$diabetes,"None","Diet","Non-insulin meds", "Insulin")
+EVAR_preprocess$diabetes <- fct_relevel(EVAR_preprocess$diabetes,"None","Diet","Non-insulin meds", "Insulin") #O
 
 #smoking
-EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current")
+EVAR_preprocess$smoking <- fct_relevel(EVAR_preprocess$smoking,"Never", "Prior", "Current") #O
 
 
 #pre_op_p2y12_antagonist
-EVAR_preprocess$pre_op_p2y12_antagonist <- fct_relevel(EVAR_preprocess$pre_op_p2y12_antagonist, "None", "No", "Clopidogrel","Ticagrelor", "Prasugrel" )
+EVAR_preprocess$pre_op_p2y12_antagonist <- fct_relevel(EVAR_preprocess$pre_op_p2y12_antagonist, "None", "No", "Clopidogrel","Ticagrelor", "Prasugrel" ) # convert to binary (yes/no)
 
 #pre_op_beta_blocker
-EVAR_preprocess$pre_op_beta_blocker <- fct_relevel(EVAR_preprocess$pre_op_beta_blocker, "No", "No, for medical reason", "Pre-op 1-30 days", "Chronic > 30 days")
+EVAR_preprocess$pre_op_beta_blocker <- fct_relevel(EVAR_preprocess$pre_op_beta_blocker, "No", "No, for medical reason", "Pre-op 1-30 days", "Chronic > 30 days") # convert to binary (yes/no) 
 
 #pre_op_chronic_anticoagulant
-EVAR_preprocess$pre_op_chronic_anticoagulant <- fct_relevel(EVAR_preprocess$pre_op_chronic_anticoagulant, "None", "No, for medical reason", "Other", "Rivaroxaban", "Warfarin", "Dabigatran")
+EVAR_preprocess$pre_op_chronic_anticoagulant <- fct_relevel(EVAR_preprocess$pre_op_chronic_anticoagulant, "None", "No, for medical reason", "Other", "Rivaroxaban", "Warfarin", "Dabigatran") # convert to binary (yes/no)
 
 #ejection_fraction
-EVAR_preprocess$ejection_fraction <- fct_relevel(EVAR_preprocess$ejection_fraction,"Not done", "Unknown", "<30%", "30-50%", ">50%")
+EVAR_preprocess$ejection_fraction <- fct_relevel(EVAR_preprocess$ejection_fraction,"Not done", "Unknown", "<30%", "30-50%", ">50%") # impute unknowns. #O
 
 
 # Is aorta_neck_angle the same as neck_aaa_angle? 
 
 #aorta_neck_angle
-EVAR_preprocess$aorta_neck_angle <- fct_relevel(EVAR_preprocess$aorta_neck_angle, "< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", "> 90 Degrees")
+EVAR_preprocess$aorta_neck_angle <- fct_relevel(EVAR_preprocess$aorta_neck_angle, "< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", "> 90 Degrees") #O
 #neck_aaa_angle
-EVAR_preprocess$neck_aaa_angle <- fct_relevel(EVAR_preprocess$neck_aaa_angle,"< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", "> 90 Degrees")
+EVAR_preprocess$neck_aaa_angle <- fct_relevel(EVAR_preprocess$neck_aaa_angle,"< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", "> 90 Degrees") #O
 
 
 #anesthesia
-EVAR_preprocess$anesthesia <- fct_relevel(EVAR_preprocess$anesthesia,"Local", "Regional", "General")
+EVAR_preprocess$anesthesia <- fct_relevel(EVAR_preprocess$anesthesia,"Local", "Regional", "General") #N
 
-EVAR_preprocess$prbc_in_or_or_preop <- fct_relevel(EVAR_preprocess$prbc_in_or_or_preop, "0", "1", "2", "3", "4")
+EVAR_preprocess$prbc_in_or_or_preop <- fct_relevel(EVAR_preprocess$prbc_in_or_or_preop, "0", "1", "2", "3", "4") # remove
 
 #proximal_aortic_extensions
-EVAR_preprocess$proximal_aortic_extensions <- fct_relevel(EVAR_preprocess$proximal_aortic_extensions, "None", "1", "2", "3")
+EVAR_preprocess$proximal_aortic_extensions <- fct_relevel(EVAR_preprocess$proximal_aortic_extensions, "None", "1", "2", "3") #O. Convert none to 0
 
 #number_right
 EVAR_preprocess <- EVAR_preprocess %>%
   mutate(number_right = fct_relevel(number_right,"None", "1", "2", "3")) %>%
   mutate(number_right = fct_recode(number_right, "0" = "None")) %>%
-  mutate(number_right = as.numeric(as.character(number_right)))
+  mutate(number_right = as.numeric(as.character(number_right))) #O
 
 # number_left
 EVAR_preprocess <- EVAR_preprocess %>%
   mutate(number_left = fct_relevel(number_left,"None", "1", "2", "3")) %>%
   mutate(number_left = fct_recode(number_left, "0" = "None")) %>%
-  mutate(number_left = as.numeric(as.character(number_left)))
+  mutate(number_left = as.numeric(as.character(number_left))) #O
 
 # ltf_statin
 EVAR_preprocess <- EVAR_preprocess %>%
   mutate(ltf_statin = as.character(ltf_statin)) %>%
-  mutate(ltf_statin = factor(na_if(ltf_statin, ""), levels = c("Yes", "No, for medical reason", "No", "Non-compliant")))
+  mutate(ltf_statin = factor(na_if(ltf_statin, ""), levels = c("Yes", "No, for medical reason", "No", "Non-compliant"))) # yes no # N
 
 # ltf_beta_blocker
 EVAR_preprocess <- EVAR_preprocess %>%
   mutate(ltf_beta_blocker = as.character(ltf_beta_blocker)) %>%
   mutate(ltf_beta_blocker = factor(na_if(ltf_beta_blocker, ""), levels = c("Yes", "No, for medical reason", "No"))) %>%
-  mutate(ltf_beta_blocker = fct_relevel(ltf_beta_blocker, "Yes", "No, for medical reason", "No")) 
+  mutate(ltf_beta_blocker = fct_relevel(ltf_beta_blocker, "Yes", "No, for medical reason", "No")) # yes no # N
 
 # ltf_ace_inhibitor_arb
 EVAR_preprocess <- EVAR_preprocess %>%
   mutate(ltf_ace_inhibitor_arb = as.character(ltf_ace_inhibitor_arb)) %>%
   mutate(ltf_ace_inhibitor_arb = factor(na_if(ltf_ace_inhibitor_arb, ""), levels = c("Yes", "No, for medical reason", "No"))) %>%
-  mutate(ltf_ace_inhibitor_arb = fct_relevel(ltf_ace_inhibitor_arb, "Yes", "No, for medical reason", "No")) 
+  mutate(ltf_ace_inhibitor_arb = fct_relevel(ltf_ace_inhibitor_arb, "Yes", "No, for medical reason", "No")) # yes no # N
 
 # right_iliac_endpoint
-EVAR_preprocess$right_iliac_endpoint <- fct_relevel(EVAR_preprocess$right_iliac_endpoint, "None","Common", "External, Intended", "External, Unintended")
+EVAR_preprocess$right_iliac_endpoint <- fct_relevel(EVAR_preprocess$right_iliac_endpoint, "None","Common", "External, Intended", "External, Unintended") #N
 
 # left_iliac_endpoint
-EVAR_preprocess$left_iliac_endpoint <- fct_relevel(EVAR_preprocess$left_iliac_endpoint, "None","Common", "External, Intended", "External, Unintended")
+EVAR_preprocess$left_iliac_endpoint <- fct_relevel(EVAR_preprocess$left_iliac_endpoint, "None","Common", "External, Intended", "External, Unintended") #N
   
 ```
 
@@ -413,7 +421,7 @@ cat("Num of Missing Patterns: ",
 
 ## PRE-PROCESS
 
-Pipeline: Split -> Impute -> One-hot Encode -> Scale -> Feature Selection
+Pipeline: Split -> Impute ->  Feature Selection -> Scale ->  One-hot Encode
 
 ### Split Data
 Always split first :)
@@ -640,5 +648,211 @@ repeatedcv_trControl <- trainControl(method = "repeatedcv",
 set.seed(42)
 ```
 
+
+### Model Training for Sac Regression
+
+```{r model-train}
+
+# Set model outcome
+train_sacreg <- train_final %>%
+  mutate(sac_regression_12m_cat.Regression = as.factor(sac_regression_12m_cat.Regression)) %>%
+  select(-sac_regression_12m_cat.Expansion)
+
+test_sacreg <- test_final %>%
+  mutate(sac_regression_12m_cat.Regression = as.factor(sac_regression_12m_cat.Regression)) %>%
+  select(-sac_regression_12m_cat.Expansion)
+
+
+levels(train_sacreg$sac_regression_12m_cat.Regression) <- c("X0", "X1")
+levels(test_sacreg$sac_regression_12m_cat.Regression) <- c("X0", "X1")
+
+```
+
+
+
+
+#### Logistic Regression
+```{r logisticreg}
+
+start_time <- Sys.time()
+
+# train model
+LR <- train(sac_regression_12m_cat.Regression ~ .,
+            data = train_sacreg,
+               method = "glm",
+               family = "binomial",
+               trControl = repeatedcv_trControl,
+               metric = "ROC" # Increase max iterations
+               )
+
+# Make predictions on the test set
+LRpred <- predict(LR,
+                  s = LR$bestTune$lambda, # choose the best lambda
+                  newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                  type = "prob")
+
+LRROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, LRpred$X1)
+
+total_time <- Sys.time() - start_time
+cat("LogisticRegression time", total_time, "\n")
+
+```
+
+
+#### RF
+```{r rf}
+# Random Forest Model
+start_time <- Sys.time()
+
+# specify tuning grid for optimum hyperparameters
+RFgrid <- expand.grid(mtry = 2:4, 
+                      splitrule = "gini", 
+                      min.node.size = c(10,20))
+
+levels(train_sacreg$sac_regression_12m_cat.Regression) <- c("X0", "X1")
+
+# train RF model
+RF <- train(sac_regression_12m_cat.Regression ~ .,
+            data = train_sacreg,
+            method = "ranger",
+            trControl = repeatedcv_trControl,
+            tuneGrid = RFgrid,
+            metric = "ROC")
+
+# predict on test set
+RFpred <- predict(RF, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                         type = "prob")
+
+RFROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, RFpred$X1)
+
+total_time <- Sys.time() - start_time
+cat("RF time", total_time, "\n")
+```
+
+#### XGBoost Tree
+
+Takes a while to run. XGBoost can be computationally expensive
+
+```{r xgboost}
+# XGBoostTree Model
+start_time <- Sys.time()
+
+# specify tuning grid for optimum hyperparameters
+XGBgrid <- expand.grid(nrounds = (1:5)*50,
+                       max_depth = 2:5,
+                       eta = c(0.4,0.1,0.001),
+                       min_child_weight = c(1,5,10),
+                       subsample = c(0.5,0.7,0.9,1),
+                       gamma = c(0,0.1,1,2),
+                       colsample_bytree = c(0.5,0.7,0.9,1))
+# train RF model
+XGB <- train(sac_regression_12m_cat.Regression ~ .,
+            data = train_sacreg,
+            method = "xgbTree",
+            trControl = repeatedcv_trControl,
+            tuneGrid = XGBgrid,
+            metric = "ROC")
+
+# predict on test set
+XGBpred <- predict(XGB, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                         type = "prob")
+
+XGBROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, XGBpred$X1)
+
+total_time <- Sys.time() - start_time
+cat("XGB time", total_time, "\n")
+```
+
+
+#### Naive Bayes
+```{r naive-bayes}
+# Naive Bayes Model
+
+start_time <- Sys.time()
+# specify tuning grid for optimum hyperparameters
+NBgrid <- expand.grid(
+  laplace = c(0, 0.5, 1.0), 
+  usekernel = c(TRUE,FALSE), 
+  adjust = c(0, 0.5, 1.0))
+# train RF model
+NB <- train(sac_regression_12m_cat.Regression ~ .,
+            data = train_sacreg,
+            method = "naive_bayes",
+            trControl = repeatedcv_trControl,
+            tuneGrid = NBgrid,
+            metric = "ROC")
+
+# predict on test set
+NBpred <- predict(NB, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                         type = "prob")
+
+NBROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, NBpred$X1)
+
+total_time <- Sys.time() - start_time
+cat("NB time", total_time, "\n")
+```
+
+
+#### Support Vector Machines
+```{r svm}
+# SVM model
+start_time <- Sys.time()
+
+# specify tuning grid for optimum hyperparameters
+SVMgrid <- expand.grid(sigma = c(0.01, 0.05, 0.1, 1),
+                          C = c(0.01, 0.05, 0.1, 1))
+# train RF model
+SVM <- train(sac_regression_12m_cat.Regression ~ .,
+            data = train_sacreg,
+            method = "svmRadial",
+            trControl = repeatedcv_trControl,
+            tuneGrid = SVMgrid,
+            metric = "ROC")
+
+# predict on test set
+SVMpred <- predict(SVM, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                         type = "prob")
+
+SVMROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, SVMpred$X1)
+
+total_time <- Sys.time() - start_time
+cat("SVM time", total_time, "\n")
+
+```
+
+
+#### NNETgrid
+```{r nnetgrid}
+# NNETgrid model
+# multilayer perceptron artificial neural network
+start_time <- Sys.time()
+
+# specify tuning grid for optimum hyperparameters
+NNETgrid <- expand.grid(size = seq(from = 1, to = 10, by = 1),
+                        decay = seq(from = 0.1, to = 0.5, by = 0.1))
+# train RF model
+NNET <- train(sac_regression_12m_cat.Regression ~ .,
+            data = train_sacreg,
+            method = "nnet",
+            trControl = repeatedcv_trControl,
+            tuneGrid = NNETgrid,
+            metric = "ROC")
+
+# predict on test set
+NNETpred <- predict(NNET, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                         type = "prob")
+
+NNETROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, NNETpred$X1)
+
+total_time <- Sys.time() - start_time
+cat("NNET time", total_time, "\n")
+
+```
+
+
+# END
+```{r}
+
+```
 
 \`\`\`
