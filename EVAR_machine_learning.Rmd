@@ -59,26 +59,31 @@ pacman::p_load(pacman,
                tidyverse, rio, caret,finalfit,
                
                #plots
-               ggplot2, mice, missRanger,
+               ggplot2, mice, missRanger, gridExtra,
                
                #machine learning
-               pROC, xgboost, ranger, naivebayes, e1071, nnet,
+               pROC, xgboost, ranger, naivebayes, e1071, nnet, glmnet,
                
                # extras
                forcats, janitor, explore, caTools, Metrics, VIM, car)
 ```
 
+
+
+
 ### Load data
 
 ```{r load-data}
 #Sourcedir for Mehdi
-EVARSourcedir <- "~/Desktop/EVAR/EVAR_cleaned_filtered_12_23_23.rds"
+EVARSourcedir <- "~/Desktop/EVAR/EVAR_reintervention_04_11_2024.rds"
 
 #Sourcedir for Josh
 #EVARSourcedir <- "data/EVAR_cleaned_filtered_12_23_23.rds"
 
 EVAR <- readRDS(EVARSourcedir)
 ```
+
+
 
 ### Correct Errors
 
@@ -88,6 +93,9 @@ EVAR[ which(EVAR$primprocid == 798089), "height_cm"] <- 188.00
 EVAR[ which(EVAR$primprocid == 798089), "bmi"] <- 32.7
 ```
 
+
+## CLEANING DATA
+
 Let's get a glimpse of the dataframe as it is now
 Finalfit is a great package to do this
 ff_glimpse() returns a list containing dataframes for continous and categorical vars
@@ -95,26 +103,9 @@ It gives mean, min, max, and na_counts and na_percent
 
 ```{r EVAR-ff-glimpse}
 EVAR_glimpse <- ff_glimpse(EVAR)
+EVAR_preprocess <- EVAR
 ```
 
-
-## CLEANING DATA
-
-Remove cols and rows with too many missing values - remove records with
-too many missing values (\>40%) - remove columns with too many missing
-values (\>20%)
-
-```{r}
-
-# Remove records with too many missing values
-EVAR_preprocess <- EVAR %>%
-  select(which(colMeans(is.na(.)) <= 0.6)) #Remove observations with more than 60% missing data
-
-# Remove columns with too many missing values
-EVAR_preprocess <- EVAR %>%
-  select(which(colMeans(is.na(.)) <= 0.4)) #Remove columns with more than 40% missing data
-
-```
 
 Remove unnecessary or uninformative columns
 
@@ -219,35 +210,34 @@ EVAR_preprocess <- EVAR_preprocess %>%
     aortic_graft_length_1 = as.character(aortic_graft_length_1), 
     aortic_graft_length_1 = if_else(aortic_graft_length_1 == "90-30", 
                                     "90", aortic_graft_length_1),
-    aortic_graft_length_1 = as.numeric(aortic_graft_length_1),
-    
     
     # right_iliac_graft_diameter_1
     right_iliac_graft_diameter_1 = as.character(right_iliac_graft_diameter_1), 
     right_iliac_graft_diameter_1 = if_else(right_iliac_graft_diameter_1 == "16-14.5", 
                                            "16", right_iliac_graft_diameter_1),
-    right_iliac_graft_diameter_1 = as.numeric(right_iliac_graft_diameter_1),
-    
     
     #right_iliac_graft_length_1
     right_iliac_graft_length_1 = as.character(right_iliac_graft_length_1), 
     right_iliac_graft_length_1 = if_else(right_iliac_graft_length_1 == "Other", 
                                            NA, right_iliac_graft_length_1),
-    right_iliac_graft_length_1 = as.numeric(right_iliac_graft_length_1),
-    
     
     # left_iliac_graft_length_1
     left_iliac_graft_length_1 = as.character(left_iliac_graft_length_1), 
     left_iliac_graft_length_1 = if_else(left_iliac_graft_length_1 == "Other", 
-                                           NA, left_iliac_graft_length_1),
-    left_iliac_graft_length_1 = as.numeric(left_iliac_graft_length_1),
-    
-    # renal_svs
-    renal_svs = as.numeric(renal_svs),
-    
-    # age_svs
-    age_svs = as.numeric(age_svs),
+                                           NA, left_iliac_graft_length_1)
     )
+
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(right_iliac_graft_diameter_1 = as.numeric(right_iliac_graft_diameter_1),
+         right_iliac_graft_length_1 = as.numeric(right_iliac_graft_length_1),
+         aortic_graft_length_1 = as.numeric(aortic_graft_length_1),
+         left_iliac_graft_length_1 = as.numeric(left_iliac_graft_length_1),
+         # age_svs\
+         age_svs = as.numeric(age_svs),
+         # renal_svs
+         renal_svs = as.numeric(renal_svs)
+         )
+
 ```
 
 #### Reorder factors
@@ -260,6 +250,7 @@ anesthesia, prbc_in_or_or_preop, proximal_aortic_extensions, number_right, numbe
 ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb, right_iliac_endpoint, left_iliac_endpoint
 
 ```{r reorder-factors}
+
 # dysrhy
 EVAR_preprocess$dysrhy <- fct_relevel(EVAR_preprocess$dysrhy, "No", "Yes, atrial", "Other") #N
 
@@ -292,12 +283,15 @@ EVAR_preprocess$pre_op_chronic_anticoagulant <- fct_relevel(EVAR_preprocess$pre_
 EVAR_preprocess$ejection_fraction <- fct_relevel(EVAR_preprocess$ejection_fraction,"Not done", "Unknown", "<30%", "30-50%", ">50%") # impute unknowns. #O
 
 
-# Is aorta_neck_angle the same as neck_aaa_angle? 
 
 #aorta_neck_angle
 EVAR_preprocess$aorta_neck_angle <- fct_relevel(EVAR_preprocess$aorta_neck_angle, "< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", "> 90 Degrees") #O
 #neck_aaa_angle
 EVAR_preprocess$neck_aaa_angle <- fct_relevel(EVAR_preprocess$neck_aaa_angle,"< 45 Degrees", "45-60 Degrees", "61-75 Degrees", "76-90 Degrees", "> 90 Degrees") #O
+
+
+EVAR_preprocess$iliac_aneurysm <- fct_relevel(EVAR_preprocess$iliac_aneurysm, "No", "Left", "Right", "Unilateral", "Bilateral")
+EVAR_preprocess$iliac_aneurysm <- fct_collapse(EVAR_preprocess$iliac_aneurysm, "Unilateral" = c("Left", "Right", "Unilateral"))
 
 
 #anesthesia
@@ -346,9 +340,182 @@ EVAR_preprocess$left_iliac_endpoint <- fct_relevel(EVAR_preprocess$left_iliac_en
 ```
 
 
+### Variable Selection
+Remove variables based on Josh's suggestions (02/26/2024)
+
+```{r}
+
+# Remove records with race: unknown/other, American Indian or Alaskan Native, Asian
+EVAR_preprocess <- EVAR_preprocess %>%
+  filter(race != "Unknown / Other") %>%
+  filter(race != "American Indian or Alaskan Native" ) %>%
+  filter(race != "Asian") %>% 
+  filter(anesthesia != "Regional") %>%
+  filter(discharge_status != "Dead") %>%
+  droplevels()
+  
+
+variables_to_remove <- c(
+  # Demographics
+  "hispanic_or_latino",
+  "physician",
+  "renal_svs",
+  "age_svs", 
+  "height_cm", 
+  "weight_kg", 
+  "living_status", 
+  
+  # lab data
+  "basophil_percent",
+  "calcium",
+  "chloride",
+  "co2",
+  "eosinophil_percent",
+  "hemoglobin",
+  "lymphocyte_percent",
+  "mch",
+  "mchc",
+  "monocyte_percent",
+  "sodium",
+  "wbc",
+  
+  # Other
+  "genetic_history",
+  "pasc_none",
+  "total_procedure_time",
+  "iodinated_contrast",
+  "prbc_in_or_or_preop",
+  "right_iliac_endpoint",
+  "left_iliac_endpoint",
+  "right_iliac_graft_mfg_1",
+  "left_iliac_graft_mfg_1",
+  "transfusion_number_units_prbc",
+  "lowest_hemoglobin",
+  "highest_creatinine",
+  "vital_status",
+  "ltf_asa",
+  "ltf_p2y12_antagonist",
+  "ltf_statin",
+  "ltf_beta_blocker",
+  "ltf_ace_inhibitor_arb",
+  "ltf_anticoagulant",
+  "hematocrit",
+  
+  "survival_years",
+  "survival_1yr",
+  "survival_5yr")
+
+EVAR_preprocess <- EVAR_preprocess[,!(names(EVAR_preprocess) %in% variables_to_remove)]
+```
+
+
+### Combining Variables
+
+Combine variables
+```{r}
+
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(
+    aortic_main_device = fct_collapse(as.factor(aortic_main_device),
+                                           "Bifurcated renal fixation" = c("Bifurcated infra-renal", 
+                                                                           "Bifurcated supra-renal fixation"),
+                                           "Aorto-uni-iliac" = c("Aorto-uni-iliac, left", 
+                                                                 "Aorto-uni-iliac, right")),
+    
+    proximal_aortic_extensions = fct_collapse(as.factor(proximal_aortic_extensions),
+                                           "No" = c("None"),
+                                           "Yes" = c("1", "2", "3")),
+    
+    number_right = fct_collapse(as.factor(number_right),
+                                           "2+" = c("2", "3")),
+    number_left = fct_collapse(as.factor(number_left),
+                                           "2+" = c("2", "3")),
+    
+    iv_bp_support_post_op = fct_collapse(as.factor(iv_bp_support_post_op),
+                                              "Yes" = c(">24 hrs postop", "Yes, < 4 hrs", "Yes, 4-24 hrs", "Yes")),
+    
+    pre_op_p2y12_antagonist = fct_collapse(as.factor(pre_op_p2y12_antagonist),
+                                                   "No" = c("None", "No"),
+                                                   "Yes" = c("Clopidogrel", "Ticagrelor","Prasugrel")),
+    
+    pre_op_beta_blocker = fct_collapse(as.factor(pre_op_beta_blocker),
+                                                   "No" = c("No, for medical reason", "No"),
+                                                   "Yes" = c("Pre-op 1-30 days", "Chronic > 30 days")),
+    
+    pre_op_chronic_anticoagulant = fct_collapse(as.factor(pre_op_chronic_anticoagulant),
+                                                   "No" = c("None", "No, for medical reason"),
+                                                   "Yes" = c("Rivaroxaban", "Warfarin", "Dabigatran", "Other")),
+    
+    discharge_p2y12_antagonist = fct_collapse(as.factor(discharge_p2y12_antagonist),
+                                                   "No" = c("None", "No"),
+                                                   "Yes" = c("Clopidogrel", "Ticagrelor","Prasugrel")),
+    
+    discharge_anticoagulant = fct_collapse(as.factor(discharge_anticoagulant),
+                                                "No" = c("None", "No"),
+                                                "Yes" = c("Rivaroxaban","Warfarin","Other","Dabigatran")),
+    
+    aortic_graft_manufacturer_1 = fct_collapse(as.factor(aortic_graft_manufacturer_1),
+                                                "Other" = c("Other", "Medtronic", "Endologix")),
+    
+  # Combine right_internal_illiac and left_internal_illiac. 
+  # Both have levels: "Coil Occlusion" "IFU" "Bell Bottom" "Amplatzer plug" "Branch graft" "Covered"
+    internal_illiac_BellBottom = ifelse(
+      right_internal_iliac == "Bell Bottom" | left_internal_iliac == "Bell Bottom", 1, 0),
+    
+    internal_illiac_BranchGraft = ifelse(
+      right_internal_iliac == "Branch graft" | left_internal_iliac == "Branch graft", 1, 0),
+    
+    internal_illiac_CoiledAndCovered = ifelse(
+      right_internal_iliac == "Coil Occlusion" | left_internal_iliac == "Coil Occlusion" | 
+        right_internal_iliac == "Covered" & left_internal_iliac == "Covered" | 
+        right_internal_iliac == "Amplatzer plug" | left_internal_iliac == "Amplatzer plug", 1, 0)) %>%
+  mutate(number_right = fct_relevel(number_right, "0", "1", "2+")) %>%
+  
+  # right_illiac_adjunct.Stent.Graft and left coalesce
+  mutate(iliac_adjunct = coalesce(right_iliac_adjunct, left_iliac_adjunct)) %>%
+  mutate(left_internal_iliac = NULL,
+         right_internal_iliac = NULL,
+         right_iliac_adjunct = NULL,
+         left_iliac_adjunct = NULL) %>%
+  mutate(sac_regression_12m_cat = fct_collapse(sac_regression_12m_cat,
+                                               "Not Regressed" = c("Stable", "Expansion")))
+
+```
+
+
+
 Now we generate a glimpse into EVAR_preprocess
 ```{r EVAR-preprocess-ff-glimpse}
 EVAR_preprocess_glimpse <- ff_glimpse(EVAR_preprocess)
+```
+
+
+
+
+Remove cols and rows with too many missing values
+- remove records with too many missing values (\>40%) 
+- remove columns with too many missing values (\>20%)
+
+Had to do this manually using EVAR_preprocess_glimpse
+
+```{r}
+cols_to_remove <- c("number_closure_devices_right",
+                    "number_closure_devices_left",
+                    "distal_endpoint_right",
+                    "distal_endpoint_left",
+                    "largest_sheath_size_right",
+                    "largest_sheath_size_left",
+                    "right_iliac_graft_length_1",
+                    "right_iliac_graft_diameter_1",
+                    "left_iliac_graft_length_1",
+                    "left_iliac_graft_diameter_1")
+
+EVAR_preprocess <- EVAR_preprocess[,!(names(EVAR_preprocess) %in% cols_to_remove)]
+
+# For rows, there are no rows with >40% missing values
+# Should return FALSE - there are no rows with more than 40% missing data
+print(any(rowSums(is.na(EVAR_preprocess)) > 0.4 * length(EVAR_preprocess)))
+
 ```
 
 
@@ -389,10 +556,8 @@ demographics_table1 <- EVAR_preprocess %>%
   add_col_totals = TRUE,
   p = TRUE,
   p_cont_para = "aov",
-  p_cat = "chisq"
+  p_cat = "fisher"
   )
-
-
 ```
 
 
@@ -420,6 +585,7 @@ cat("Num of Missing Patterns: ",
 
 
 ## PRE-PROCESS
+
 
 Pipeline: Split -> Impute ->  Feature Selection -> Scale ->  One-hot Encode
 
@@ -454,53 +620,19 @@ Literature shows it is better than standard MICE:
 
 Suh H, Song J.  A comparison of imputation methods using machine learning models.  CSAM 2023;30:331-341.  https://doi.org/10.29220/CSAM.2023.30.3.331
 
-
-
 ```{r imputation}
+
 # missRanger
 
 train_imputed <- missRanger(data =  train_df, 
-                           # impute all variables using all variables except outcome
-                           formula = . ~ . -sac_regression_12m_cat, 
+                           # impute all variables using all variables except outcomes
+                           formula = . ~ . -sac_regression_12m_cat - survival_1yr_censor - survival_5yr_censor - reintervention,
                            pmm.k = 3, num.trees = 100)
 
 test_imputed <- missRanger(data =  test_df, 
-                           # impute all variables using all variables except outcome
-                           formula = . ~ . -sac_regression_12m_cat, 
+                           # impute all variables using all variables except outcomes
+                           formula = . ~ . -sac_regression_12m_cat - survival_1yr_censor - survival_5yr_censor - reintervention, 
                            pmm.k = 3, num.trees = 100)
-```
-
-### Non-zero variance Feature Selection
-
-Remove variables with zero variance
-```{r zero-variance-vars}
-
-nzv <- nearZeroVar(train_imputed, saveMetrics= T)
-
-# Shortlist of NZV features
-nzv_to_remove <- nzv %>% 
-    filter(zeroVar==T | nzv==T) %>% 
-    rownames_to_column("col_names") 
-    
-# Let's remove our NZV variables
-train_feature_select <- train_imputed %>% 
-  select(-pull(nzv_to_remove, col_names))
-
-test_feature_select <- test_imputed %>% 
-  select(-pull(nzv_to_remove, col_names))
-```
-
-
-### Correlated Vars
-Remove highly correlated variables
-```{r}
-train_cor <- cor(train_feature_select %>% 
-                   select(-sac_regression_12m_cat) %>%
-                   summarise(across(where(is.numeric))))
-highly_corr_vars <- findCorrelation(train_cor, cutoff = .75)
-
-train_cor_feature_select <- train_feature_select[,-highly_corr_vars]
-test_cor_feature_select <- test_feature_select[,-highly_corr_vars]
 ```
 
 
@@ -508,8 +640,8 @@ test_cor_feature_select <- test_feature_select[,-highly_corr_vars]
 ```{r}
 # To make sure ordering of each factor variable makes sense, we must investigate each to determine which need to reordered with fct_relevel
 # Extract information about factor variables
-ordinalfactorVars_info <- lapply(names(train_cor_feature_select), function(column_name) {
-  column <- train_cor_feature_select[[column_name]]
+ordinalfactorVars_info <- lapply(names(train_imputed), function(column_name) {
+  column <- train_imputed[[column_name]]
   
   if (is.factor(column)) {
     levels_info <- levels(column)
@@ -524,7 +656,7 @@ ordinalfactorVars_info <- lapply(names(train_cor_feature_select), function(colum
 })
 
 # Remove NULL elements (non-factor variables) from the list
-ordinalfactorVars_info <- ordinalfactorVars_info[sapply(train_cor_feature_select, function(x) !is.null(x))]
+ordinalfactorVars_info <- ordinalfactorVars_info[sapply(train_imputed, function(x) !is.null(x))]
 
 # Print the information
 for (info in ordinalfactorVars_info) {
@@ -533,27 +665,21 @@ for (info in ordinalfactorVars_info) {
   cat("Levels:", paste(info$levels, collapse = "; "), "\n\n")
 }
 ```
+
 Based on the above, ordinal vars are:
 dysrhy, functional_status, cad_symptoms, 
-copd, diabetes, smoking, prior_cabg, prior_pci, stress_test, pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle, neck_aaa_angle, discharge_p2y12_antagonist, ltf_asa, ltf_p2y12_antagonist, ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb, ltf_anticoagulant
+copd, diabetes, smoking, prior_cabg, prior_pci, stress_test, pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle, neck_aaa_angle, discharge_p2y12_antagonist
 
 Here we convert the ordinal variables to be numeric to preserve ordinality. It also helps to reduce dimensionality when we one-hot encode all the other categorical variables
 
 ```{r ordinal-vars}
 # List of ordinal factor variables
-ordinal_factors <- c("dysrhy", "functional_status", "cad_symptoms", 
-                     "copd", "diabetes", "smoking", "prior_cabg", "prior_pci", 
-                     "stress_test", "pre_op_p2y12_antagonist", "pre_op_beta_blocker", 
-                     "pre_op_chronic_anticoagulant", "ejection_fraction", 
-                     "aorta_neck_angle", "neck_aaa_angle", 
-                     "discharge_p2y12_antagonist", "ltf_asa", "ltf_p2y12_antagonist", 
-                     "ltf_statin", "ltf_beta_blocker", "ltf_ace_inhibitor_arb", 
-                     "ltf_anticoagulant")
+ordinal_factors <- c("dysrhy", "functional_status", "cad_symptoms", "cvd", "cad_symptoms", "prior_chf", "copd", "diabetes", "dialysis", "smoking", "prior_cabg", "prior_pci", "prior_cea_cas", "prior_aneurysm_repair", "prior_major_amp", "stress_test", "ejection_fraction", "aorta_neck_angle", "neck_aaa_angle", "iliac_aneurysm")
 
 # Convert each ordinal factor variable to numeric preserving ordinality
 for (factor_var in ordinal_factors) {
-  train_cor_feature_select[[factor_var]] <- as.numeric((train_cor_feature_select[[factor_var]]))
-  test_cor_feature_select[[factor_var]] <- as.numeric((test_cor_feature_select[[factor_var]]))
+  train_imputed[[factor_var]] <- as.numeric((train_imputed[[factor_var]]))
+  test_imputed[[factor_var]] <- as.numeric((test_imputed[[factor_var]]))
 
 }
 ```
@@ -564,12 +690,16 @@ for (factor_var in ordinal_factors) {
 ```{r}
 
 # Apply scaling to numerical columns in train dataframe
-train_scaled <- train_cor_feature_select %>%
-  mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
+train_scaled <- train_imputed %>%
+  mutate(across(where(is.numeric), as.numeric)) %>%  # Ensure all numeric columns are numeric
+  preProcess(method = "range", cols = where(is.numeric)) %>%
+  predict(train_imputed)
 
 # Apply scaling to numerical columns in test dataframe
-test_scaled <- test_cor_feature_select %>%
-  mutate_if(is.numeric, ~scales::rescale(., to = c(0, 1)))
+test_scaled <- test_imputed %>%
+  mutate(across(where(is.numeric), as.numeric)) %>%  # Ensure all numeric columns are numeric
+  preProcess(method = "range", cols = where(is.numeric)) %>%
+  predict(test_imputed)
 
 ```
 
@@ -582,9 +712,9 @@ We also one-hot encode the outcome variable in order to transform the multi-clas
 
 ```{r one-hot-encode}
 # fullRank TRUE ensures no linear dependencies induced between the columns
-dummyEVAR <- dummyVars(" ~ .", data = train_cor_feature_select, fullRank=T, dummy_na = TRUE)
-train_onehot <- data.frame(predict(dummyEVAR, newdata = train_feature_select))
-test_onehot <- data.frame(predict(dummyEVAR, newdata = test_feature_select))
+dummyEVAR <- dummyVars(" ~ .", data = train_scaled, fullRank=T, dummy_na = TRUE)
+train_onehot <- data.frame(predict(dummyEVAR, newdata = train_scaled))
+test_onehot <- data.frame(predict(dummyEVAR, newdata = test_scaled))
 ```
 
 ### NZV for one-hot encode
@@ -597,16 +727,17 @@ Remove variables with zero variance
 nzv2 <- nearZeroVar(train_onehot, saveMetrics= T)
 
 # Shortlist of NZV features
-nzv_to_remove2 <- nzv2 %>% 
-    filter(zeroVar == T | nzv == T) %>% 
-    rownames_to_column("col_names") 
+nzv_to_remove2 <- nzv2 %>%
+  filter(nzv == TRUE) %>%
+  mutate(col_names = rownames(.)) %>%
+  select(col_names)
     
 # Let's remove our NZV variables
 train_final <- train_onehot %>% 
   select(-pull(nzv_to_remove2, col_names))
 
-test_final <- test_onehot %>% 
-  select(-pull(nzv_to_remove2, col_names))
+test_final <- test_onehot  %>% 
+ select(-pull(nzv_to_remove2, col_names))
 ```
 
 
@@ -614,7 +745,7 @@ test_final <- test_onehot %>%
 We have finished preprocessing :)
 ```{r}
 EVAR_post_report_filename <- "Report_EVAR_Postprocess.html"
-EVAR_postprocess_report <- report(train_scaled, 
+EVAR_postprocess_report <- report(train_final, 
                                  output_file = EVAR_post_report_filename,
                                  output_dir = getwd())
 ```
@@ -622,62 +753,89 @@ EVAR_postprocess_report <- report(train_scaled,
 
 ```{r correlation-matrix}
 # Calculate correlation matrix
-correlation_matrix <- cor(train_final[, -which(names(train_final) == "sac_regression_12m_cat.Regression")])
+correlation_matrix_sacregression <- cor(train_final[, -which(names(train_final) == "sac_regression_12m_cat.Regression")])
 
 # Visualize correlation matrix as a heatmap
-heatmap(correlation_matrix)
-
+heatmap(correlation_matrix_sacregression)
 ```
 
 
 ## MODEL TRAINING
 
-### Cross Validation
-```{r cross-val}
-repeatedcv_trControl <- trainControl(method = "repeatedcv", 
-                                     number = 5 , repeats = 10, # 5-fold ; 5 repeats
-                                     classProbs = TRUE, # to get class probabilities for ROC curve
-                                     summaryFunction = twoClassSummary, # for binary classification
-                                     savePredictions = TRUE, # Save predictions for metrics calculation
-                          
-                                     returnData = FALSE, # Do not return the resampled data
-                                     returnResamp = "final", # Only return the final resample result
-                                     selectionFunction = "best", # Use the best model based on AUC
-                                     allowParallel = TRUE) # Enable parallel processing if available
-
-set.seed(42)
-```
-
-
-### Model Training for Sac Regression
-
+### Setting up
 ```{r model-train}
 
-# Set model outcome
+
 train_sacreg <- train_final %>%
-  mutate(sac_regression_12m_cat.Regression = as.factor(sac_regression_12m_cat.Regression)) %>%
-  select(-sac_regression_12m_cat.Expansion)
+  mutate(sac_regression_12m_cat.Regression = 
+           as.factor(sac_regression_12m_cat.Regression),
+         survival_1yr_censor.1 = 
+           as.factor(survival_1yr_censor.1),
+         survival_5yr_censor.1 = 
+           as.factor(survival_5yr_censor.1),
+         reintervention.Yes = 
+           as.factor(reintervention.Yes))
 
 test_sacreg <- test_final %>%
-  mutate(sac_regression_12m_cat.Regression = as.factor(sac_regression_12m_cat.Regression)) %>%
-  select(-sac_regression_12m_cat.Expansion)
-
+  mutate(sac_regression_12m_cat.Regression = 
+           as.factor(sac_regression_12m_cat.Regression),
+         survival_1yr_censor.1 = 
+           as.factor(survival_1yr_censor.1),
+         survival_5yr_censor.1 = 
+           as.factor(survival_5yr_censor.1),
+         reintervention.Yes = 
+           as.factor(reintervention.Yes))
 
 levels(train_sacreg$sac_regression_12m_cat.Regression) <- c("X0", "X1")
 levels(test_sacreg$sac_regression_12m_cat.Regression) <- c("X0", "X1")
 
+levels(train_sacreg$survival_1yr_censor.1) <- c("X0", "X1")
+levels(test_sacreg$survival_1yr_censor.1) <- c("X0", "X1")
+
+levels(train_sacreg$survival_5yr_censor.1) <- c("X0", "X1")
+levels(test_sacreg$survival_5yr_censor.1) <- c("X0", "X1")
+
+levels(train_sacreg$reintervention.Yes) <- c("X0", "X1")
+levels(test_sacreg$reintervention.Yes) <- c("X0", "X1")
+
+
+other_outcome_vars <- c("reintervention.Yes", 
+                         "survival_5yr_censor.1",
+                         "sac_regression_12m_cat.Regression")
+
+train_sacreg <- train_sacreg %>%
+   select(-all_of(other_outcome_vars))
+
+test_sacreg <- test_sacreg %>%
+   select(-all_of(other_outcome_vars))
+ 
+ml_outcome <- "survival_1yr_censor.1"
+
+```
+
+### trainControl
+```{r}
+repeatedcv_trControl <- trainControl(method = "repeatedcv", 
+                                       number = 5, 
+                                       repeats = 5, # 5-fold ; 5 repeats
+                                       classProbs = TRUE, # to get class probabilities for ROC curve
+                                       summaryFunction = twoClassSummary, # for binary classification
+                                       savePredictions = TRUE, # Save predictions for metrics calculation
+                                       returnData = FALSE, # Do not return the resampled data
+                                       returnResamp = "final", # Only return the final resample result
+                                       selectionFunction = "best", # Use the best model based on AUC
+                                       allowParallel = TRUE) # Enable parallel processing if available
+
 ```
 
 
-
-
-#### Logistic Regression
+### Logistic Regression
 ```{r logisticreg}
 
 start_time <- Sys.time()
 
 # train model
-LR <- train(sac_regression_12m_cat.Regression ~ .,
+LR <- train(reintervention.Yes ~ .,
             data = train_sacreg,
                method = "glm",
                family = "binomial",
@@ -688,31 +846,168 @@ LR <- train(sac_regression_12m_cat.Regression ~ .,
 # Make predictions on the test set
 LRpred <- predict(LR,
                   s = LR$bestTune$lambda, # choose the best lambda
-                  newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                  newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
                   type = "prob")
 
-LRROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, LRpred$X1)
+LRROC <- roc(test_sacreg$reintervention.Yes, LRpred$X1)
 
 total_time <- Sys.time() - start_time
-cat("LogisticRegression time", total_time, "\n")
+cat("LogisticRegression time", total_time, "\n",
+    "AUC", LRROC$auc, "\n")
+
+
+# Try elastic regression or LASSO
+# Find subset of variables
+# 
+```
+
+
+```{r}
+
+# Prepare your data
+LassoX <- model.matrix(survival_1yr_censor.1 ~ ., data = train_sacreg)
+Lassoy <- train_sacreg$survival_1yr_censor.1
+
+# Fit the logistic regression model with Lasso regularization
+lasso_model <- cv.glmnet(LassoX, Lassoy, family = "binomial", alpha = 0.5)
+
+# Choose the optimal lambda (regularization parameter) using cross-validation
+best_lambda <- lasso_model$lambda.min
+
+# Refit the model using the selected lambda
+lasso_model_final <- glmnet(LassoX, Lassoy, family = "binomial", alpha = 1, lambda = best_lambda)
+
+# Extract coefficients from the model
+coefficients <- coef(lasso_model_final)
+
+# Extract coefficients from the model
+coefficients <- as.data.frame(as.matrix(coef(lasso_model_final)))
+
+# Convert to data frame with proper column names
+coefficients_df <- rownames_to_column(coefficients, var = "Variable")
+
+coefficients_df <- coefficients_df %>%
+  filter(s0 != 0)
+
+ggplot(coefficients_df, aes(x = Variable, y = s0)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(x = "Variables", y = "Coefficients", title = "Lasso Regression Coefficients") +
+  theme_minimal()
+```
+
+```{r}
+lasso_vars <- c("proc_year", "age_at_procedure", "cad_symptoms","copd","prior_pci"             ,"prior_arterial_pvi.Yes",  "anion_gap"                            
+,"creatinine", "glucose"                              
+,"mono_number_k_ul", "platelets"                            
+,"potassium", "rdw"                                  
+,"urea_nitrogen" ,"pre_op_hemoglobin_g_l"                
+, "pre_op_asa.Yes" ,"pre_op_ace_inhibitor_arb.Yes"         
+, "unfit_for_open_aaa_repair.Yes"         ,"rt_int_iliac_diameter"                
+, "lt_int_iliac_diameter","rt_distal_seal_zone_length"           
+, "anesthesia.General","crystalloid"                          
+, "access_right.Open.femoral..transverse" ,"aortic_graft_manufacturer_1.Cook"     
+,"number_right.1","number_right.2."                      
+, "number_left.2.","discharge_statin.Yes","years_quit_smoking",
+
+"sac_regression_12m_cat.Regression")
+
+train_lasso <- train_sacreg %>%
+  select(all_of(lasso_vars))
+test_lasso <- test_sacreg %>%
+  select(all_of(lasso_vars))
+```
+
+
+```{r}
+# Perform 10-fold cross-validation to select lambda
+lambdas_to_try <- 10^seq(-4, 4, length.out = 100)
+
+# Setting alpha = 1 for lasso; alpha = 0 for ridge
+cv0 <- cv.glmnet(LassoX, Lassoy, alpha = 0, lambda = lambdas_to_try,
+                 standardize = TRUE, nfolds = 5, type.measure = "mse", family = "binomial")
+cv03 <- cv.glmnet(LassoX, Lassoy, alpha = 0.8, lambda = lambdas_to_try,
+                  standardize = TRUE, nfolds = 5, type.measure = "mse", family = "binomial")
+cv07 <- cv.glmnet(LassoX, Lassoy, alpha = 0.9, lambda = lambdas_to_try,
+                  standardize = TRUE, nfolds = 5, type.measure = "mse", family = "binomial")
+cv1 <- cv.glmnet(LassoX, Lassoy, alpha = 1, lambda = lambdas_to_try,
+                 standardize = TRUE, nfolds = 5, type.measure = "mse", family = "binomial")
+
+# Plot cross-validation results
+par(mfrow=c(2,2))
+plot(cv0);plot(cv03);plot(cv07);plot(cv1)
+
+# Compare the solution paths
+par(mfrow=c(2,2))
+plot(glmnet(LassoX, Lassoy, alpha = 0, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 0.8, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 0.9, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 1, family = "binomial"),xvar="lambda")
+
+coef(cv07)
+
 
 ```
 
 
-#### RF
+
+### LR with LASSO
+```{r logisticreg-LASSO}
+
+start_time <- Sys.time()
+
+lambda_grid <- expand.grid(alpha = 1, lambda= seq(0.001, 3, length = 200))
+
+# train model
+LRLasso <- train(sac_regression_12m_cat.Regression ~ .,
+                 data = train_sacreg,
+                 method = "glmnet",
+                 family = "binomial",
+                 trControl = repeatedcv_trControl,
+                 tuneGrid = lambda_grid,
+                 metric = "ROC"
+                 )
+# Access the coefficients of the selected model
+lasso_coefficients <- coef(LRLasso$finalModel, s = LRLasso$bestTune$lambda)
+# Plot the coefficient path
+coefficient_plot <- plot(LRLasso$finalModel, xvar = "lambda", label = TRUE)
+
+# Make predictions on the test set
+LRLassopred <- predict(LRLasso,
+                  s = LRLasso$bestTune$lambda, # choose the best lambda
+                  newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                  type = "prob")
+
+LRLassoROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, LRLassopred$X1)
+
+total_time <- Sys.time() - start_time
+cat("LogisticRegression with Lasso time", total_time, "\n",
+    "AUC", LRLassoROC$auc, "\n")
+
+
+# Try elastic regression or LASSO
+# Find subset of variables
+# 
+```
+
+
+
+### RF
 ```{r rf}
 # Random Forest Model
 start_time <- Sys.time()
 
+
+train_sacreg <- ROSE(survival_1yr_censor.1 ~ ., data = train_sacreg, N = 1000, seed = 42)$data
 # specify tuning grid for optimum hyperparameters
 RFgrid <- expand.grid(mtry = 2:4, 
                       splitrule = "gini", 
                       min.node.size = c(10,20))
 
-levels(train_sacreg$sac_regression_12m_cat.Regression) <- c("X0", "X1")
+levels(train_sacreg$survival_1yr_censor.1) <- c("X0", "X1")
 
 # train RF model
-RF <- train(sac_regression_12m_cat.Regression ~ .,
+RF <- train(survival_1yr_censor.1 ~ .,
             data = train_sacreg,
             method = "ranger",
             trControl = repeatedcv_trControl,
@@ -720,16 +1015,17 @@ RF <- train(sac_regression_12m_cat.Regression ~ .,
             metric = "ROC")
 
 # predict on test set
-RFpred <- predict(RF, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+RFpred <- predict(RF, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
                          type = "prob")
 
-RFROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, RFpred$X1)
+RFROC <- roc(test_sacreg$survival_1yr_censor.1, RFpred$X1)
 
 total_time <- Sys.time() - start_time
-cat("RF time", total_time, "\n")
+cat("RF time", total_time, "\n",
+    "AUC", RFROC$auc, "\n")
 ```
 
-#### XGBoost Tree
+### XGBoost Tree
 
 Takes a while to run. XGBoost can be computationally expensive
 
@@ -747,24 +1043,25 @@ XGBgrid <- expand.grid(nrounds = (1:5)*50,
                        colsample_bytree = c(0.5,0.7,0.9,1))
 # train RF model
 XGB <- train(sac_regression_12m_cat.Regression ~ .,
-            data = train_sacreg,
+            data = train_lasso,
             method = "xgbTree",
             trControl = repeatedcv_trControl,
-            tuneGrid = XGBgrid,
+            # tuneGrid = XGBgrid,
             metric = "ROC")
 
 # predict on test set
-XGBpred <- predict(XGB, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+XGBpred <- predict(XGB, newdata = test_lasso %>% select(-sac_regression_12m_cat.Regression), # use the test set
                          type = "prob")
 
-XGBROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, XGBpred$X1)
+XGBROC <- roc(test_lasso$sac_regression_12m_cat.Regression, XGBpred$X1)
 
 total_time <- Sys.time() - start_time
-cat("XGB time", total_time, "\n")
+cat("XGB time", total_time, "\n",
+    "AUC", XGBROC$auc, "\n")
 ```
 
 
-#### Naive Bayes
+### Naive Bayes
 ```{r naive-bayes}
 # Naive Bayes Model
 
@@ -775,7 +1072,7 @@ NBgrid <- expand.grid(
   usekernel = c(TRUE,FALSE), 
   adjust = c(0, 0.5, 1.0))
 # train RF model
-NB <- train(sac_regression_12m_cat.Regression ~ .,
+NB <- train(reintervention.Yes ~ .,
             data = train_sacreg,
             method = "naive_bayes",
             trControl = repeatedcv_trControl,
@@ -783,17 +1080,18 @@ NB <- train(sac_regression_12m_cat.Regression ~ .,
             metric = "ROC")
 
 # predict on test set
-NBpred <- predict(NB, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+NBpred <- predict(NB, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
                          type = "prob")
 
-NBROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, NBpred$X1)
+NBROC <- roc(test_sacreg$reintervention.Yes, NBpred$X1)
 
 total_time <- Sys.time() - start_time
-cat("NB time", total_time, "\n")
+cat("NB time", total_time, "\n",
+    "AUC", NBROC$auc, "\n")
 ```
 
 
-#### Support Vector Machines
+### Support Vector Machines
 ```{r svm}
 # SVM model
 start_time <- Sys.time()
@@ -802,7 +1100,7 @@ start_time <- Sys.time()
 SVMgrid <- expand.grid(sigma = c(0.01, 0.05, 0.1, 1),
                           C = c(0.01, 0.05, 0.1, 1))
 # train RF model
-SVM <- train(sac_regression_12m_cat.Regression ~ .,
+SVM <- train(reintervention.Yes ~ .,
             data = train_sacreg,
             method = "svmRadial",
             trControl = repeatedcv_trControl,
@@ -810,43 +1108,91 @@ SVM <- train(sac_regression_12m_cat.Regression ~ .,
             metric = "ROC")
 
 # predict on test set
-SVMpred <- predict(SVM, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+SVMpred <- predict(SVM, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
                          type = "prob")
 
-SVMROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, SVMpred$X1)
+SVMROC <- roc(test_sacreg$reintervention.Yes, SVMpred$X1)
 
 total_time <- Sys.time() - start_time
-cat("SVM time", total_time, "\n")
+cat("SVM time", total_time, "\n",
+    "AUC", SVMROC$auc, "\n")
 
 ```
 
 
-#### NNETgrid
-```{r nnetgrid}
-# NNETgrid model
-# multilayer perceptron artificial neural network
-start_time <- Sys.time()
+### Variable Importance
 
-# specify tuning grid for optimum hyperparameters
-NNETgrid <- expand.grid(size = seq(from = 1, to = 10, by = 1),
-                        decay = seq(from = 0.1, to = 0.5, by = 0.1))
-# train RF model
-NNET <- train(sac_regression_12m_cat.Regression ~ .,
-            data = train_sacreg,
-            method = "nnet",
-            trControl = repeatedcv_trControl,
-            tuneGrid = NNETgrid,
-            metric = "ROC")
+```{r}
+vimp <- varImp(NB,  scale = FALSE)
+print(vimp)
+```
 
-# predict on test set
-NNETpred <- predict(NNET, newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
-                         type = "prob")
 
-NNETROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, NNETpred$X1)
 
-total_time <- Sys.time() - start_time
-cat("NNET time", total_time, "\n")
+## PLOTS
 
+```{r}
+
+plot_roc_comparison <- function(roc1, roc2, 
+                                roc1_color = "red", roc2_color = "blue",
+                                title = "ROC Curve Comparison") {
+  # Convert ROC curves to data frames
+  roc1_df <- data.frame(
+    FPR = 1 - roc1$specificities,
+    TPR = roc1$sensitivities
+  )
+  
+  roc2_df <- data.frame(
+    FPR = 1 - roc2$specificities,
+    TPR = roc2$sensitivities
+  )
+  
+  # Calculate AUC values
+  auc1 <- roc1$auc
+  auc2 <- roc2$auc
+  
+  # Calculate confidence intervals for ROC curves
+  ci1 <- ci.se(roc1, specificities=seq(0, 1, l=25))
+  ci2 <- ci.se(roc2, specificities=seq(0, 1, l=25))
+  
+  dat.ci1 <- data.frame(x = as.numeric(rownames(ci1)),
+                     lower = ci1[, 1],
+                     upper = ci1[, 3])
+  
+  dat.ci2 <- data.frame(x = as.numeric(rownames(ci2)),
+                     lower = ci2[, 1],
+                     upper = ci2[, 3])
+  
+  
+  # Plot ROC curves using ggplot2
+  plot <- ggplot() +
+    geom_line(data = roc1_df, aes(x = FPR, y = TPR), 
+              color = roc1_color, linetype = "solid") +
+    geom_line(data = roc2_df, aes(x = FPR, y = TPR), 
+              color = roc2_color, linetype = "solid") +
+    geom_ribbon(data = dat.ci2, aes(x = 1 - x, ymin = lower, ymax = upper), fill = "steelblue", alpha= 0.2) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted", color = "black") + # Add diagonal line for reference
+    labs(x = "False Positive Rate", y = "True Positive Rate", title = title) +
+    annotate("text", x = 0.8, y = 0.13, label = paste("AUC:", round(auc1, 3)), color = roc1_color, size = 3, hjust = 0, vjust = 0) +
+    annotate("text", x = 0.8, y = 0.05, label = paste("AUC:", round(auc2, 3)), color = roc2_color, size = 3, hjust = 0, vjust = 0) +
+    theme_minimal()
+  
+  return(plot)
+}
+
+
+
+plot1 <- plot_roc_comparison(LRROC, RFROC, title = "Random Forest vs. LR")
+plot2 <- plot_roc_comparison(LRROC, XGBROC, title = "XGBoost vs. LR")
+plot3 <- plot_roc_comparison(LRROC, NBROC, title = "Naive Bayes vs. LR")
+plot4 <- plot_roc_comparison(LRROC, SVMROC, title = "SVM vs. LR")
+
+super_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2)
+
+```
+
+```{r}
+ggsave("sac_reg.png", plot = super_plot, dpi = 300, height = 6, width = 7.5)
 ```
 
 
