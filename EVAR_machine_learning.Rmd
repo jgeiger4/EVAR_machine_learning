@@ -1106,6 +1106,27 @@ plot(glmnet(LassoX, Lassoy, alpha = 1, family = "binomial"),xvar="lambda")
 coef(cv95)
 
 
+### plot partial likelihood deviance
+pld <- rbind(cbind(Alpha = 0, min = cv0$lambda.min, se1 = cv0$lambda.1se),
+      cbind(Alpha = 0.2, min = cv02$lambda.min, se1 = cv02$lambda.1se),
+      cbind(Alpha = 0.4, min = cv04$lambda.min, se1 = cv04$lambda.1se),
+      cbind(Alpha = 0.6, min = cv06$lambda.min, se1 = cv06$lambda.1se),
+      cbind(Alpha = 0.8, min = cv08$lambda.min, se1 = cv08$lambda.1se),
+      cbind(Alpha = 0.9, min = cv09$lambda.min, se1 = cv09$lambda.1se),
+      cbind(Alpha = 0.95, min = cv95$lambda.min, se1 = cv95$lambda.1se),
+      cbind(Alpha = 1, min = cv1$lambda.min, se1 = cv1$lambda.1se))
+
+pld
+
+pld <- as.data.frame(pld) %>%
+  pivot_longer(cols = c(min, se1),
+                            names_to = "Measure", 
+                            values_to = "Partial Likelihood Deviance")
+      
+ggplot(pld, aes(x = Alpha, y = `Partial Likelihood Deviance`,
+                color = Measure)) +
+  geom_line() +
+  theme_classic()
 ```
 
 ```{r}
