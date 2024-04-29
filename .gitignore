@@ -7,3 +7,6 @@ EVAR_machine_learning.Rproj
 .Ruserdata
 >>>>>>> cdad848286bc95c37f139bb459cd7df9ead7b1d4
 data
+EVAR_MachineLearning_Demographics.csv
+EVAR_MachineLearning_Demographics.xlsx
+.DS_Store

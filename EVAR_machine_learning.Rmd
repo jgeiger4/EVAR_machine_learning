@@ -885,6 +885,7 @@ cat("LogisticRegression time", total_time, "\n",
 ```
 
 
+<<<<<<< HEAD
 ```{r}
 
 # Prepare your data
@@ -1017,6 +1018,8 @@ cat("LogisticRegression with Lasso time", total_time, "\n",
 
 
 
+=======
+>>>>>>> 192992198ed71e2980d07f83cfad5ef617eff561
 ### RF
 ```{r rf}
 # Random Forest Model
@@ -1293,11 +1296,266 @@ super_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2)
 ggsave("sac_reg.png", plot = super_plot, dpi = 300, height = 6, width = 7.5)
 ```
 
+<<<<<<< HEAD
 ```{r}
 resultsplot <- plot_roc_comparison(survival1yr_SMV_ROC, sac_regression_XGB_ROC, title = "Receiver Operator Characteristic Curve")
 ggsave("ml_result.png", plot = resultsplot, dpi = 300, height = 6, width = 7.5)
 ```
 
+=======
+## Elastic Nets
+
+### 1 Year Survival
+
+#### Cross validation
+```{r}
+# Prepare your data
+LassoX <- model.matrix(survival_1yr_censor.1 ~ ., data = train_sacreg)
+Lassoy <- train_sacreg$survival_1yr_censor.1
+
+# Perform 10-fold cross-validation to select lambda
+lambdas_to_try <- 10^seq(-4, 4, length.out = 100)
+
+# Setting alpha = 1 for lasso; alpha = 0 for ridge
+cv8 <- cv.glmnet(LassoX, Lassoy, alpha = 0.8, lambda = lambdas_to_try,
+                  standardize = TRUE, nfolds = 5, type.measure = "mse",
+                  family = "binomial")
+cv9 <- cv.glmnet(LassoX, Lassoy, alpha = 0.9, lambda = lambdas_to_try,
+                  standardize = TRUE, nfolds = 5, type.measure = "mse",
+                  family = "binomial")
+cv95 <- cv.glmnet(LassoX, Lassoy, alpha = 0.95, lambda = lambdas_to_try,
+                 standardize = TRUE, nfolds = 5, type.measure = "mse",
+                 family = "binomial")
+cv1 <- cv.glmnet(LassoX, Lassoy, alpha = 1, lambda = lambdas_to_try,
+                 standardize = TRUE, nfolds = 5, type.measure = "mse",
+                 family = "binomial")
+
+# Plot cross-validation results
+par(mfrow=c(2,2))
+plot(cv8);plot(cv9);plot(cv95);plot(cv1)
+
+# Compare the solution paths
+par(mfrow=c(2,2))
+plot(glmnet(LassoX, Lassoy, alpha = 0.8, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 0.9, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 0.95, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 1, family = "binomial"),xvar="lambda")
+
+coef(cv95)
+
+
+### plot partial likelihood deviance
+pld <- rbind(cbind(Alpha = 0, min = cv0$lambda.min, se1 = cv0$lambda.1se),
+      cbind(Alpha = 0.2, min = cv02$lambda.min, se1 = cv02$lambda.1se),
+      cbind(Alpha = 0.4, min = cv04$lambda.min, se1 = cv04$lambda.1se),
+      cbind(Alpha = 0.6, min = cv06$lambda.min, se1 = cv06$lambda.1se),
+      cbind(Alpha = 0.8, min = cv08$lambda.min, se1 = cv08$lambda.1se),
+      cbind(Alpha = 0.9, min = cv09$lambda.min, se1 = cv09$lambda.1se),
+      cbind(Alpha = 0.95, min = cv95$lambda.min, se1 = cv95$lambda.1se),
+      cbind(Alpha = 1, min = cv1$lambda.min, se1 = cv1$lambda.1se))
+
+pld
+
+pld <- as.data.frame(pld) %>%
+  pivot_longer(cols = c(min, se1),
+                            names_to = "Measure", 
+                            values_to = "Partial Likelihood Deviance")
+      
+ggplot(pld, aes(x = Alpha, y = `Partial Likelihood Deviance`,
+                color = Measure)) +
+  geom_line() +
+  theme_classic()
+```
+
+```{r}
+
+# Fit the logistic regression model with Lasso regularization
+lasso_model <- glmnet(LassoX, Lassoy,
+                         family = "binomial",
+                      alpha = 0.95,
+                      nlambda = 100)
+
+# Choose the optimal lambda (regularization parameter) using cross-validation
+best_lambda <- lasso_model$lambda.min
+
+# Refit the model using the selected lambda
+lasso_model_final <- lasso_model <- glmnet(LassoX, Lassoy,
+                         family = "binomial",
+                      alpha = 0.95,
+                      lambda = best_lambda)
+
+# Extract coefficients from the model
+coefficients <- coef(lasso_model_final)
+
+# Extract coefficients from the model
+coefficients <- as.data.frame(as.matrix(coef(lasso_model_final)))
+
+# Convert to data frame with proper column names
+coefficients_df <- rownames_to_column(coefficients, var = "Variable")
+
+coefficients_df <- coefficients_df %>%
+  filter(s0 != 0)
+
+ggplot(coefficients_df, aes(x = Variable, y = s0)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(x = "Variables", y = "Coefficients", title = "Lasso Regression Coefficients") +
+  theme_minimal()
+```
+
+
+
+
+### Sac Regression
+
+#### Cross validation
+```{r}
+# Prepare your data
+LassoX <- model.matrix(sac_regression_12m_cat.Regression ~ ., data = train_sacreg)
+Lassoy <- train_sacreg$sac_regression_12m_cat.Regression
+
+# Perform 10-fold cross-validation to select lambda
+lambdas_to_try <- 10^seq(-4, 4, length.out = 100)
+
+# Setting alpha = 1 for lasso; alpha = 0 for ridge
+cv8 <- cv.glmnet(LassoX, Lassoy, alpha = 0.8, lambda = lambdas_to_try,
+                  standardize = TRUE, nfolds = 5, type.measure = "mse",
+                  family = "binomial")
+cv9 <- cv.glmnet(LassoX, Lassoy, alpha = 0.9, lambda = lambdas_to_try,
+                  standardize = TRUE, nfolds = 5, type.measure = "mse",
+                  family = "binomial")
+cv95 <- cv.glmnet(LassoX, Lassoy, alpha = 0.95, lambda = lambdas_to_try,
+                 standardize = TRUE, nfolds = 5, type.measure = "mse",
+                 family = "binomial")
+cv1 <- cv.glmnet(LassoX, Lassoy, alpha = 1, lambda = lambdas_to_try,
+                 standardize = TRUE, nfolds = 5, type.measure = "mse",
+                 family = "binomial")
+
+# Plot cross-validation results
+par(mfrow=c(2,2))
+plot(cv8);plot(cv9);plot(cv95);plot(cv1)
+
+# Compare the solution paths
+par(mfrow=c(2,2))
+plot(glmnet(LassoX, Lassoy, alpha = 0.8, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 0.9, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 0.95, family = "binomial"),xvar="lambda");
+plot(glmnet(LassoX, Lassoy, alpha = 1, family = "binomial"),xvar="lambda")
+
+coef(cv95)
+
+
+```
+
+```{r}
+
+# Fit the logistic regression model with Lasso regularization
+lasso_model <- glmnet(LassoX, Lassoy,
+                         family = "binomial",
+                      alpha = 0.95,
+                      nlambda = 100)
+
+# Choose the optimal lambda (regularization parameter) using cross-validation
+best_lambda <- lasso_model$lambda.min
+
+# Refit the model using the selected lambda
+lasso_model_final <- lasso_model <- glmnet(LassoX, Lassoy,
+                         family = "binomial",
+                      alpha = 0.95,
+                      lambda = best_lambda)
+
+# Extract coefficients from the model
+coefficients <- coef(lasso_model_final)
+
+# Extract coefficients from the model
+coefficients <- as.data.frame(as.matrix(coef(lasso_model_final)))
+
+# Convert to data frame with proper column names
+coefficients_df <- rownames_to_column(coefficients, var = "Variable")
+
+coefficients_df <- coefficients_df %>%
+  filter(s0 != 0)
+
+ggplot(coefficients_df, aes(x = Variable, y = s0)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(x = "Variables", y = "Coefficients", title = "Lasso Regression Coefficients") +
+  theme_minimal()
+```
+
+
+
+
+
+
+```{r}
+lasso_vars <- c("proc_year", "age_at_procedure", "cad_symptoms","copd","prior_pci"             ,"prior_arterial_pvi.Yes",  "anion_gap"                            
+,"creatinine", "glucose"                              
+,"mono_number_k_ul", "platelets"                            
+,"potassium", "rdw"                                  
+,"urea_nitrogen" ,"pre_op_hemoglobin_g_l"                
+, "pre_op_asa.Yes" ,"pre_op_ace_inhibitor_arb.Yes"         
+, "unfit_for_open_aaa_repair.Yes"         ,"rt_int_iliac_diameter"                
+, "lt_int_iliac_diameter","rt_distal_seal_zone_length"           
+, "anesthesia.General","crystalloid"                          
+, "access_right.Open.femoral..transverse" ,"aortic_graft_manufacturer_1.Cook"     
+,"number_right.1","number_right.2."                      
+, "number_left.2.","discharge_statin.Yes","years_quit_smoking",
+
+"sac_regression_12m_cat.Regression")
+
+train_lasso <- train_sacreg %>%
+  select(all_of(lasso_vars))
+test_lasso <- test_sacreg %>%
+  select(all_of(lasso_vars))
+```
+
+
+
+
+
+
+### LR with Elastic Nets
+```{r logisticreg-LASSO}
+
+start_time <- Sys.time()
+
+lambda_grid <- expand.grid(alpha = 1, lambda= seq(0.001, 3, length = 200))
+
+# train model
+LRLasso <- train(sac_regression_12m_cat.Regression ~ .,
+                 data = train_sacreg,
+                 method = "glmnet",
+                 family = "binomial",
+                 trControl = repeatedcv_trControl,
+                 tuneGrid = lambda_grid,
+                 metric = "ROC"
+                 )
+# Access the coefficients of the selected model
+lasso_coefficients <- coef(LRLasso$finalModel, s = LRLasso$bestTune$lambda)
+# Plot the coefficient path
+coefficient_plot <- plot(LRLasso$finalModel, xvar = "lambda", label = TRUE)
+
+# Make predictions on the test set
+LRLassopred <- predict(LRLasso,
+                  s = LRLasso$bestTune$lambda, # choose the best lambda
+                  newdata = test_sacreg %>% select(-sac_regression_12m_cat.Regression), # use the test set
+                  type = "prob")
+
+LRLassoROC <- roc(test_sacreg$sac_regression_12m_cat.Regression, LRLassopred$X1)
+
+total_time <- Sys.time() - start_time
+cat("LogisticRegression with Lasso time", total_time, "\n",
+    "AUC", LRLassoROC$auc, "\n")
+
+
+# Try elastic regression or LASSO
+# Find subset of variables
+# 
+```
+
+
+>>>>>>> 192992198ed71e2980d07f83cfad5ef617eff561
 
 # END
 ```{r}
