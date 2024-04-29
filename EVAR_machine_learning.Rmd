@@ -65,7 +65,7 @@ pacman::p_load(pacman,
                pROC, xgboost, ranger, naivebayes, e1071, nnet, glmnet,
                
                # extras
-               forcats, janitor, explore, caTools, Metrics, VIM, car)
+               forcats, janitor, explore, caTools, Metrics, VIM, car, kernelshap, shapviz)
 ```
 
 
@@ -519,6 +519,26 @@ print(any(rowSums(is.na(EVAR_preprocess)) > 0.4 * length(EVAR_preprocess)))
 ```
 
 
+### Post-op features
+
+```{r}
+post_op_features <- c("iv_bp_support_post_op",
+                      "postop_complications",
+                      "discharge_status",
+                      "discharge_asa",
+                      "discharge_p2y12_antagonist",
+                      "discharge_statin",
+                      "discharge_beta_blocker",
+                      "dicharge_ace_inhibitor_arb",
+                      "discharge_anticoagulant"
+                      )
+EVAR_preprocess <- EVAR_preprocess[,!(names(EVAR_preprocess) %in% post_op_features)]
+
+
+```
+
+
+
 ### Pre-processing report
 
 Generate a report about the data before any pre-processing steps like scaling, and imputation
@@ -799,9 +819,10 @@ levels(train_sacreg$reintervention.Yes) <- c("X0", "X1")
 levels(test_sacreg$reintervention.Yes) <- c("X0", "X1")
 
 
-other_outcome_vars <- c("reintervention.Yes", 
+other_outcome_vars <- c("sac_regression_12m_cat.Regression", 
                          "survival_5yr_censor.1",
-                         "sac_regression_12m_cat.Regression")
+                         "reintervention.Yes"
+                        )
 
 train_sacreg <- train_sacreg %>%
    select(-all_of(other_outcome_vars))
@@ -825,6 +846,7 @@ repeatedcv_trControl <- trainControl(method = "repeatedcv",
                                        returnResamp = "final", # Only return the final resample result
                                        selectionFunction = "best", # Use the best model based on AUC
                                        allowParallel = TRUE) # Enable parallel processing if available
+set.seed(42)
 
 ```
 
@@ -833,9 +855,10 @@ repeatedcv_trControl <- trainControl(method = "repeatedcv",
 ```{r logisticreg}
 
 start_time <- Sys.time()
+set.seed(42)
 
 # train model
-LR <- train(reintervention.Yes ~ .,
+LR <- train(survival_1yr_censor.1 ~ .,
             data = train_sacreg,
                method = "glm",
                family = "binomial",
@@ -846,10 +869,10 @@ LR <- train(reintervention.Yes ~ .,
 # Make predictions on the test set
 LRpred <- predict(LR,
                   s = LR$bestTune$lambda, # choose the best lambda
-                  newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
+                  newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
                   type = "prob")
 
-LRROC <- roc(test_sacreg$reintervention.Yes, LRpred$X1)
+LRROC <- roc(test_sacreg$survival_1yr_censor.1, LRpred$X1)
 
 total_time <- Sys.time() - start_time
 cat("LogisticRegression time", total_time, "\n",
@@ -865,11 +888,11 @@ cat("LogisticRegression time", total_time, "\n",
 ```{r}
 
 # Prepare your data
-LassoX <- model.matrix(survival_1yr_censor.1 ~ ., data = train_sacreg)
-Lassoy <- train_sacreg$survival_1yr_censor.1
+LassoX <- model.matrix(reintervention.Yes ~ ., data = train_sacreg)
+Lassoy <- train_sacreg$reintervention.Yes
 
 # Fit the logistic regression model with Lasso regularization
-lasso_model <- cv.glmnet(LassoX, Lassoy, family = "binomial", alpha = 0.5)
+lasso_model <- cv.glmnet(LassoX, Lassoy, family = "binomial", alpha = 1)
 
 # Choose the optimal lambda (regularization parameter) using cross-validation
 best_lambda <- lasso_model$lambda.min
@@ -895,6 +918,7 @@ ggplot(coefficients_df, aes(x = Variable, y = s0)) +
   labs(x = "Variables", y = "Coefficients", title = "Lasso Regression Coefficients") +
   theme_minimal()
 ```
+
 
 ```{r}
 lasso_vars <- c("proc_year", "age_at_procedure", "cad_symptoms","copd","prior_pci"             ,"prior_arterial_pvi.Yes",  "anion_gap"                            
@@ -955,6 +979,7 @@ coef(cv07)
 ```{r logisticreg-LASSO}
 
 start_time <- Sys.time()
+set.seed(42)
 
 lambda_grid <- expand.grid(alpha = 1, lambda= seq(0.001, 3, length = 200))
 
@@ -996,29 +1021,29 @@ cat("LogisticRegression with Lasso time", total_time, "\n",
 ```{r rf}
 # Random Forest Model
 start_time <- Sys.time()
+set.seed(42)
 
-
-train_sacreg <- ROSE(survival_1yr_censor.1 ~ ., data = train_sacreg, N = 1000, seed = 42)$data
 # specify tuning grid for optimum hyperparameters
 RFgrid <- expand.grid(mtry = 2:4, 
                       splitrule = "gini", 
                       min.node.size = c(10,20))
 
-levels(train_sacreg$survival_1yr_censor.1) <- c("X0", "X1")
+levels(train_sacreg$reintervention.Yes) <- c("X0", "X1")
 
 # train RF model
-RF <- train(survival_1yr_censor.1 ~ .,
+RF <- train(reintervention.Yes ~ .,
             data = train_sacreg,
             method = "ranger",
             trControl = repeatedcv_trControl,
             tuneGrid = RFgrid,
-            metric = "ROC")
+            metric = "ROC",
+            importance = "impurity")
 
 # predict on test set
-RFpred <- predict(RF, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
+RFpred <- predict(RF, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
                          type = "prob")
 
-RFROC <- roc(test_sacreg$survival_1yr_censor.1, RFpred$X1)
+RFROC <- roc(test_sacreg$reintervention.Yes, RFpred$X1)
 
 total_time <- Sys.time() - start_time
 cat("RF time", total_time, "\n",
@@ -1032,6 +1057,7 @@ Takes a while to run. XGBoost can be computationally expensive
 ```{r xgboost}
 # XGBoostTree Model
 start_time <- Sys.time()
+set.seed(42)
 
 # specify tuning grid for optimum hyperparameters
 XGBgrid <- expand.grid(nrounds = (1:5)*50,
@@ -1042,18 +1068,18 @@ XGBgrid <- expand.grid(nrounds = (1:5)*50,
                        gamma = c(0,0.1,1,2),
                        colsample_bytree = c(0.5,0.7,0.9,1))
 # train RF model
-XGB <- train(sac_regression_12m_cat.Regression ~ .,
-            data = train_lasso,
+XGB <- train(reintervention.Yes ~ .,
+            data = train_sacreg,
             method = "xgbTree",
             trControl = repeatedcv_trControl,
             # tuneGrid = XGBgrid,
             metric = "ROC")
 
 # predict on test set
-XGBpred <- predict(XGB, newdata = test_lasso %>% select(-sac_regression_12m_cat.Regression), # use the test set
+XGBpred <- predict(XGB, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
                          type = "prob")
 
-XGBROC <- roc(test_lasso$sac_regression_12m_cat.Regression, XGBpred$X1)
+XGBROC <- roc(test_sacreg$reintervention.Yes, XGBpred$X1)
 
 total_time <- Sys.time() - start_time
 cat("XGB time", total_time, "\n",
@@ -1066,6 +1092,7 @@ cat("XGB time", total_time, "\n",
 # Naive Bayes Model
 
 start_time <- Sys.time()
+set.seed(42)
 # specify tuning grid for optimum hyperparameters
 NBgrid <- expand.grid(
   laplace = c(0, 0.5, 1.0), 
@@ -1095,6 +1122,9 @@ cat("NB time", total_time, "\n",
 ```{r svm}
 # SVM model
 start_time <- Sys.time()
+set.seed(42)
+
+levels(train_sacreg$reintervention.Yes) <- c("Alive", "Dead")
 
 # specify tuning grid for optimum hyperparameters
 SVMgrid <- expand.grid(sigma = c(0.01, 0.05, 0.1, 1),
@@ -1105,13 +1135,14 @@ SVM <- train(reintervention.Yes ~ .,
             method = "svmRadial",
             trControl = repeatedcv_trControl,
             tuneGrid = SVMgrid,
-            metric = "ROC")
+            metric = "ROC",
+            importance = TRUE)
 
 # predict on test set
 SVMpred <- predict(SVM, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
                          type = "prob")
 
-SVMROC <- roc(test_sacreg$reintervention.Yes, SVMpred$X1)
+SVMROC <- roc(test_sacreg$reintervention.Yes, SVMpred$Dead)
 
 total_time <- Sys.time() - start_time
 cat("SVM time", total_time, "\n",
@@ -1123,8 +1154,56 @@ cat("SVM time", total_time, "\n",
 ### Variable Importance
 
 ```{r}
-vimp <- varImp(NB,  scale = FALSE)
-print(vimp)
+svm_model <- train(survival_1yr_censor.1 ~ sii + nlr + insurance.Public + maximum_aaa_diameter + prior_cabg,
+            data = train_sacreg,
+            method = "svmRadial",
+            trControl = repeatedcv_trControl,
+            tuneGrid = SVMgrid,
+            metric = "ROC")
+
+svm_model_pred <- predict(svm_model, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
+                         type = "prob")
+svm_modelROC <- roc(test_sacreg$survival_1yr_censor.1, svm_model_pred$X1)
+
+```
+
+
+```{r}
+X_explain <- train_sacreg %>%
+  select(-survival_1yr_censor.1)
+# take subsample as bg_X if data has >500 rows or so
+s <- kernelshap(sac_regression_XGB, 
+                X = X_explain, 
+                bg_X = X_explain[sample(nrow(X_explain), 150), ]) 
+
+```
+
+```{r}
+sac_reg_shap <- s
+sacreg_sv <- shapviz(sac_reg_shap)
+survival_sv <- shapviz(survival_shap)
+sv_importance(sacreg_sv$X1, kind = "beeswarm", max_display = 10)
+sv_importance(survival_sv$Dead, kind = "no", max_display = 10)
+
+```
+
+```{r}
+sv_dependence(sv, X_explain)
+
+
+```
+
+### Results
+
+```{r}
+survival1yr_SMV <- SVM
+survival1yr_SMV_ROC <- SVMROC
+
+```
+
+```{r}
+sac_regression_XGB <- XGB
+sac_regression_XGB_ROC <- XGBROC
 ```
 
 
@@ -1167,21 +1246,40 @@ plot_roc_comparison <- function(roc1, roc2,
   # Plot ROC curves using ggplot2
   plot <- ggplot() +
     geom_line(data = roc1_df, aes(x = FPR, y = TPR), 
-              color = roc1_color, linetype = "solid") +
+              color = roc1_color, linetype = "solid", linewidth = 1.5) +
+    
+    geom_ribbon(data = dat.ci1, 
+                aes(x = 1 - x, ymin = lower, ymax = upper), fill = "orange", alpha= 0.2) +
+    
     geom_line(data = roc2_df, aes(x = FPR, y = TPR), 
-              color = roc2_color, linetype = "solid") +
-    geom_ribbon(data = dat.ci2, aes(x = 1 - x, ymin = lower, ymax = upper), fill = "steelblue", alpha= 0.2) +
+              color = roc2_color, linetype = "solid", linewidth = 1.5) +
+    
+    geom_ribbon(data = dat.ci2, 
+                aes(x = 1 - x, ymin = lower, ymax = upper), fill = "steelblue", alpha= 0.2) +
+    
     geom_abline(slope = 1, intercept = 0, linetype = "dotted", color = "black") + # Add diagonal line for reference
+    
     labs(x = "False Positive Rate", y = "True Positive Rate", title = title) +
-    annotate("text", x = 0.8, y = 0.13, label = paste("AUC:", round(auc1, 3)), color = roc1_color, size = 3, hjust = 0, vjust = 0) +
-    annotate("text", x = 0.8, y = 0.05, label = paste("AUC:", round(auc2, 3)), color = roc2_color, size = 3, hjust = 0, vjust = 0) +
-    theme_minimal()
+    
+    theme(axis.text = element_text(size = 12),
+          axis.title = element_text(size = 12),
+          plot.title = element_text(hjust = 0.5)) +
+    
+    annotate("text", x = 0.5, y = 0.13, 
+             label = paste("1-year mortality AUC:", round(auc1, 3)), 
+             color = roc1_color, size = 6, hjust = 0, vjust = 0) +
+    
+    annotate("text", x = 0.5, y = 0.05, 
+             label = paste("Sac Regression AUC:", round(auc2, 3)), 
+             color = roc2_color, size = 6, hjust = 0, vjust = 0)
   
   return(plot)
 }
 
 
+```
 
+```{r}
 plot1 <- plot_roc_comparison(LRROC, RFROC, title = "Random Forest vs. LR")
 plot2 <- plot_roc_comparison(LRROC, XGBROC, title = "XGBoost vs. LR")
 plot3 <- plot_roc_comparison(LRROC, NBROC, title = "Naive Bayes vs. LR")
@@ -1193,6 +1291,11 @@ super_plot <- grid.arrange(plot1, plot2, plot3, plot4, ncol = 2)
 
 ```{r}
 ggsave("sac_reg.png", plot = super_plot, dpi = 300, height = 6, width = 7.5)
+```
+
+```{r}
+resultsplot <- plot_roc_comparison(survival1yr_SMV_ROC, sac_regression_XGB_ROC, title = "Receiver Operator Characteristic Curve")
+ggsave("ml_result.png", plot = resultsplot, dpi = 300, height = 6, width = 7.5)
 ```
 
 
