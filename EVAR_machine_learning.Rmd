@@ -10,39 +10,6 @@ editor_options:
     wrap: 72
 ---
 
-Update! Dataset is done, and ready to go!
-
-Hey Mehdi,
-
-Thanks for getting this started. The rds dataset that i provided is a
-pretty good clean start. The variable that we will be attempting to
-predict is sac_regression_12m_cat. This variable states weather The
-Shins aortic aneurysms sac regressed states stable or increased in size
-at the one-year mark. I had to do a bit of reformatting of all of the
-data in order to calculate this appropriately given the variability in
-the CT scan dates and sizes. I am confident this variable is accurate at
-the moment.
-
-There are variables within the data set that are incomplete and perhaps
-chart reviewing to finish collecting some of this data will be
-important. Particularly the first couple of patients were recorded
-before all of the VQI variables were established and so there is some
-missing data there. Additionaly, the last 20 some patients I recently
-extracted from the VQI and so variables we manually extracted from the
-chart have not be collected yet. Baqir and I can help out with this.
-Baqir has also submitted a request for the lab values for these last 20
-some patients. In addition we will be obtaining dates of death for the
-entire data set. I think doing an additional analysis using similar
-methods on survival, either length of survival or survival at 5 years
-will also be interesting.
-
-
-02/26 Meeting (Baqir, Mehdi and Josh)
-- Josh to check missing sac_regression data
-- Reorder nominal and ordinal variables
-- Remove some variables like physician
-- Use one-year and 5 year as outcomes too
-
 ## SETUP
 
 ### Install Packages
@@ -234,7 +201,7 @@ EVAR_preprocess <- EVAR_preprocess %>%
 #### Reorder factors
 Variables that need to be reordered: 
 
-dysrhy, cvd, prior_chf, copd, diabetes, smoking, 
+cvd, prior_chf, copd, diabetes, smoking, 
 pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, 
 aorta_neck_angle, neck_aaa_angle,
 anesthesia, prbc_in_or_or_preop, proximal_aortic_extensions, number_right, number_right
@@ -243,7 +210,10 @@ ltf_statin, ltf_beta_blocker, ltf_ace_inhibitor_arb, right_iliac_endpoint, left_
 ```{r reorder-factors}
 
 # dysrhy
-EVAR_preprocess$dysrhy <- fct_relevel(EVAR_preprocess$dysrhy, "No", "Yes, atrial", "Other") #N
+EVAR_preprocess <- EVAR_preprocess %>%
+  mutate(atrial_dysrhy = case_when(dysrhy == "Yes, atrial" ~ "atrial",
+                                   .default = "No")) %>%
+  select(-dysrhy)
 
 #cvd
 EVAR_preprocess$cvd <- fct_relevel(EVAR_preprocess$cvd,"None","Hx stroke, asymptomatic", "Hx stroke, minor deficit", "Hx stroke, major deficit") #O
@@ -678,14 +648,14 @@ for (info in ordinalfactorVars_info) {
 ```
 
 Based on the above, ordinal vars are:
-dysrhy, functional_status, cad_symptoms, 
+functional_status, cad_symptoms, 
 copd, diabetes, smoking, prior_cabg, prior_pci, stress_test, pre_op_p2y12_antagonist, pre_op_beta_blocker, pre_op_chronic_anticoagulant, ejection_fraction, aorta_neck_angle, neck_aaa_angle, discharge_p2y12_antagonist
 
 Here we convert the ordinal variables to be numeric to preserve ordinality. It also helps to reduce dimensionality when we one-hot encode all the other categorical variables
 
 ```{r ordinal-vars}
 # List of ordinal factor variables
-ordinal_factors <- c("dysrhy", "functional_status", "cad_symptoms", "cvd", "cad_symptoms", "prior_chf", "copd", "diabetes", "dialysis", "smoking", "prior_cabg", "prior_pci", "prior_cea_cas", "prior_aneurysm_repair", "prior_major_amp", "stress_test", "ejection_fraction", "aorta_neck_angle", "neck_aaa_angle", "iliac_aneurysm")
+ordinal_factors <- c("functional_status", "cad_symptoms", "cvd", "cad_symptoms", "prior_chf", "copd", "diabetes", "dialysis", "smoking", "prior_cabg", "prior_pci", "prior_cea_cas", "prior_aneurysm_repair", "prior_major_amp", "stress_test", "ejection_fraction", "aorta_neck_angle", "neck_aaa_angle", "iliac_aneurysm")
 
 # Convert each ordinal factor variable to numeric preserving ordinality
 for (factor_var in ordinal_factors) {
