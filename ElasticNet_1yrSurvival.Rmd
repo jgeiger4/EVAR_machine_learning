@@ -74,6 +74,10 @@ imputed <- missRanger(data =  EVAR_preprocess,
                            formula = . ~ . -sac_regression_12m_cat - survival_1yr_censor - survival_5yr_censor - reintervention,
                            pmm.k = 3, num.trees = 100)
 
+imputed <- imputed %>%
+  select(-c(fluoroscopy_time, crystalloid, ebl,
+            aortic_graft_manufacturer_1))
+
 LassoX <- model.matrix(survival_1yr_censor ~ ., data = imputed %>% select(-c(reintervention, survival_5yr_censor, sac_regression_12m_cat)))
 Lassoy <- imputed$survival_1yr_censor
 
@@ -150,7 +154,7 @@ set.seed(2024)
 # Refit the model using the selected lambda
 lasso_model_final <- glmnet(LassoX, Lassoy,
                          family = "binomial",
-                      alpha = 0.95,
+                      alpha = 0.8,
                       lambda = cv1$lambda.min)
 
 # Extract coefficients from the model

@@ -32,7 +32,7 @@ pacman::p_load(pacman,
                pROC, xgboost, ranger, naivebayes, e1071, nnet, glmnet,
                
                # extras
-               forcats, janitor, explore, caTools, Metrics, VIM, car, kernelshap, shapviz)
+               forcats, janitor, explore, caTools, Metrics, VIM, car, kernelshap, shapviz, DMwR, doFuture)
 ```
 
 
@@ -846,7 +846,6 @@ cat("LogisticRegression time", total_time, "\n",
 ```
 
 
-<<<<<<< HEAD
 ```{r}
 
 # Prepare your data
@@ -991,10 +990,10 @@ RFgrid <- expand.grid(mtry = 2:4,
                       splitrule = "gini", 
                       min.node.size = c(10,20))
 
-levels(train_sacreg$reintervention.Yes) <- c("X0", "X1")
+levels(train_sacreg$survival_1yr_censor.1) <- c("X0", "X1")
 
 # train RF model
-RF <- train(reintervention.Yes ~ .,
+RF <- train(survival_1yr_censor.1 ~ .,
             data = train_sacreg,
             method = "ranger",
             trControl = repeatedcv_trControl,
@@ -1003,10 +1002,10 @@ RF <- train(reintervention.Yes ~ .,
             importance = "impurity")
 
 # predict on test set
-RFpred <- predict(RF, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
+RFpred <- predict(RF, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
                          type = "prob")
 
-RFROC <- roc(test_sacreg$reintervention.Yes, RFpred$X1)
+RFROC <- roc(test_sacreg$survival_1yr_censor.1, RFpred$X1)
 
 total_time <- Sys.time() - start_time
 cat("RF time", total_time, "\n",
@@ -1031,7 +1030,7 @@ XGBgrid <- expand.grid(nrounds = (1:5)*50,
                        gamma = c(0,0.1,1,2),
                        colsample_bytree = c(0.5,0.7,0.9,1))
 # train RF model
-XGB <- train(reintervention.Yes ~ .,
+XGB <- train(survival_1yr_censor.1 ~ .,
             data = train_sacreg,
             method = "xgbTree",
             trControl = repeatedcv_trControl,
@@ -1039,10 +1038,10 @@ XGB <- train(reintervention.Yes ~ .,
             metric = "ROC")
 
 # predict on test set
-XGBpred <- predict(XGB, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
+XGBpred <- predict(XGB, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
                          type = "prob")
 
-XGBROC <- roc(test_sacreg$reintervention.Yes, XGBpred$X1)
+XGBROC <- roc(test_sacreg$survival_1yr_censor.1, XGBpred$X1)
 
 total_time <- Sys.time() - start_time
 cat("XGB time", total_time, "\n",
@@ -1061,7 +1060,7 @@ NBgrid <- expand.grid(
   usekernel = c(TRUE,FALSE), 
   adjust = c(0, 0.5, 1.0))
 # train RF model
-NB <- train(reintervention.Yes ~ .,
+NB <- train(survival_1yr_censor.1 ~ .,
             data = train_sacreg,
             method = "naive_bayes",
             trControl = repeatedcv_trControl,
@@ -1069,10 +1068,10 @@ NB <- train(reintervention.Yes ~ .,
             metric = "ROC")
 
 # predict on test set
-NBpred <- predict(NB, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
+NBpred <- predict(NB, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
                          type = "prob")
 
-NBROC <- roc(test_sacreg$reintervention.Yes, NBpred$X1)
+NBROC <- roc(test_sacreg$survival_1yr_censor.1, NBpred$X1)
 
 total_time <- Sys.time() - start_time
 cat("NB time", total_time, "\n",
@@ -1088,12 +1087,13 @@ set.seed(42)
 
 levels(train_sacreg$survival_1yr_censor.1) <- c("Alive", "Dead")
 
+
 # specify tuning grid for optimum hyperparameters
 SVMgrid <- expand.grid(sigma = c(0.01, 0.05, 0.1, 1),
                           C = c(0.01, 0.05, 0.1, 1))
 # train RF model
 SVM <- train(survival_1yr_censor.1 ~ .,
-            data = train_sacreg,
+            data = train_sacreg_balanced,
             method = "svmRadial",
             trControl = repeatedcv_trControl,
             tuneGrid = SVMgrid,
@@ -1129,28 +1129,29 @@ svm_modelROC <- roc(test_sacreg$survival_1yr_censor.1, svm_model_pred$X1)
 
 ```
 
-
+### SHAP
 ```{r}
 X_explain <- train_sacreg %>%
   select(-survival_1yr_censor.1)
+
 # take subsample as bg_X if data has >500 rows or so
-s <- kernelshap(sac_regression_XGB, 
-                X = X_explain, 
-                bg_X = X_explain[sample(nrow(X_explain), 150), ]) 
+kernel_s <- kernelshap(SVM, 
+                X = X_explain,
+                bg_X = X_explain) 
 
 ```
 
-```{r}
 
+```{r}
 survival_sv <- shapviz(s)
-sv_importance(survival_sv, kind = "beeswarm", max_display = 10)
-
+sv_importance(survival_sv$Dead, kind = "bar", max_display = 10, show_numbers = TRUE, format_fun = format_max)
 ```
 
+
+
+
 ```{r}
-sv_dependence(sv, X_explain)
-
-
+sv_dependence(survival_sv$Dead, v = c("atrial_dysrhyNo"))
 ```
 
 ### Results
