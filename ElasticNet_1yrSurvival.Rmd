@@ -177,6 +177,15 @@ as.data.frame(as.matrix(result)) %>%
 
 ###This is not appropriate given the number of event and that variables were obtained from elastic nets.
 
+result_lr <- 
+  glm(survival_1yr_censor.1 ~ sii + dysrhy + cvd +
+        unfit_for_open_aaa_repair.Yes + maximum_aaa_diameter,
+      family = "binomial",
+      data = whole)
+summary(result_lr)
+
+#result_lr
+
 #result_lr <- 
 #  glm(survival_1yr_censor.1 ~ age_at_procedure + insurance.Public + cvd + copd +
 #        prior_cabg + potassium + rdw + nlr + sii + family_history_of_aaa.Yes +
@@ -187,6 +196,7 @@ as.data.frame(as.matrix(result)) %>%
 #summary(result_lr)
 
 #result_lr
+
 ```
 
 
