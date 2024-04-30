@@ -31,6 +31,31 @@ pacman::p_load(pacman,
 ```{r load-data}
 train <- readRDS("train_survival1yr.rds")
 test <- readRDS("test_survival1yr.rds")
+
+whole <- rbind(train, test) %>%
+  mutate(open_femoral_transverse =
+           case_when(access_left.Open.femoral..transverse == 1 ~ 1,
+                     access_right.Open.femoral..transverse == 1 ~ 1,
+                     .default = 0)) %>%
+  select(-c(fluoroscopy_time, crystalloid, ebl,
+            access_left.Open.femoral..transverse,
+            access_right.Open.femoral..transverse,
+            aortic_graft_manufacturer_1.Cook, discharge_ace_inhibitor_arb.Yes))
+
+## make sure factors are factors
+factor <- c("birth_sex.Female", "insurance.Public", "htn.Yes", "dysrhy", "functional_status",
+            "cvd", "cad_symptoms", "copd", "diabetes", "smoking", "prior_cabg", "prior_pci",
+            "prior_arterial_pvi.Yes", "stress_test", "pre_op_asa.Yes", "pre_op_p2y12_antagonist.Yes",
+            "pre_op_statin.Yes", "pre_op_beta_blocker.Yes", "pre_op_ace_inhibitor_arb.Yes",
+            "pre_op_chronic_anticoagulant.Yes", "family_history_of_aaa.Yes",
+            "unfit_for_open_aaa_repair.Yes", "ifu.Yes", "aorta_neck_angle", "neck_aaa_angle",
+            "iliac_aneurysm", "anesthesia.General", "aortic_main_device.Aorto.bi.iliac",
+            "proximal_aortic_extensions.Yes", "type_ii_leak.Yes", "intraop_cx_endoleak.Yes",
+            "internal_illiac_BellBottom",
+            "internal_illiac_CoiledAndCovered", "iliac_adjunct.Stent.Graft",
+            "ejection_fraction")
+
+whole[factor] <- lapply(whole[factor], as.factor)
 ```
 
 ## Elastic Nets
@@ -40,32 +65,36 @@ test <- readRDS("test_survival1yr.rds")
 #### Cross validation
 ```{r}
 # Prepare your data
-set.seed(1)
-LassoX <- model.matrix(survival_1yr_censor.1 ~ ., data = train)
-Lassoy <- train$survival_1yr_censor.1
+set.seed(2024)
+LassoX <- model.matrix(survival_1yr_censor.1 ~ ., data = whole)
+Lassoy <- whole$survival_1yr_censor.1
 
 # Perform 10-fold cross-validation to select lambda
-lambdas_to_try <- 10^seq(-4, 4, length.out = 100)
+lambdas_to_try <- 10^seq(-4, 2, length.out = 100)
 
 # Setting alpha = 1 for lasso; alpha = 0 for ridge
-
-
+cv4 <- cv.glmnet(LassoX, Lassoy, alpha = 0.40, lambda = lambdas_to_try,
+                  nfolds = 3, type.measure = "deviance",
+                  family = "binomial")
+cv6 <- cv.glmnet(LassoX, Lassoy, alpha = 0.60, lambda = lambdas_to_try,
+                  nfolds = 3, type.measure = "deviance",
+                  family = "binomial")
 cv8 <- cv.glmnet(LassoX, Lassoy, alpha = 0.80, lambda = lambdas_to_try,
-                  standardize = TRUE, nfolds = 5, type.measure = "mse",
+                  nfolds = 3, type.measure = "deviance",
                   family = "binomial")
 cv9 <- cv.glmnet(LassoX, Lassoy, alpha = 0.90, lambda = lambdas_to_try,
-                  standardize = TRUE, nfolds = 5, type.measure = "mse",
+                  standardize = TRUE, nfolds = 3, type.measure = "deviance",
                   family = "binomial")
 cv95 <- cv.glmnet(LassoX, Lassoy, alpha = 0.95, lambda = lambdas_to_try,
-                 standardize = TRUE, nfolds = 5, type.measure = "mse",
+                 standardize = TRUE, nfolds = 3, type.measure = "deviance",
                  family = "binomial")
 cv1 <- cv.glmnet(LassoX, Lassoy, alpha = 1, lambda = lambdas_to_try,
-                 standardize = TRUE, nfolds = 5, type.measure = "mse",
+                 nfolds = 3, type.measure = "deviance",
                  family = "binomial")
 
 # Plot cross-validation results
-par(mfrow=c(2,2))
-plot(cv8);plot(cv9);plot(cv95);plot(cv1)
+par(mfrow=c(2,3))
+plot(cv4);plot(cv6);plot(cv8);plot(cv9);plot(cv95);plot(cv1)
 
 # Compare the solution paths
 par(mfrow=c(2,2))
@@ -76,12 +105,11 @@ plot(glmnet(LassoX, Lassoy, alpha = 1, family = "binomial"),xvar="lambda")
 
 coef(cv95)
 
-
 ### plot partial likelihood deviance
 pld <- rbind(#cbind(Alpha = 0, min = cv0$lambda.min, se1 = cv0$lambda.1se),
       #cbind(Alpha = 0.2, min = cv2$lambda.min, se1 = cv2$lambda.1se),
-      #cbind(Alpha = 0.4, min = cv4$lambda.min, se1 = cv4$lambda.1se),
-      #cbind(Alpha = 0.6, min = cv6$lambda.min, se1 = cv6$lambda.1se),
+      cbind(Alpha = 0.4, min = cv4$lambda.min, se1 = cv4$lambda.1se),
+      cbind(Alpha = 0.6, min = cv6$lambda.min, se1 = cv6$lambda.1se),
       cbind(Alpha = 0.80, min = cv8$lambda.min, se1 = cv8$lambda.1se),
       cbind(Alpha = 0.90, min = cv9$lambda.min, se1 = cv9$lambda.1se),
       cbind(Alpha = 0.95, min = cv95$lambda.min, se1 = cv95$lambda.1se),
@@ -89,33 +117,33 @@ pld <- rbind(#cbind(Alpha = 0, min = cv0$lambda.min, se1 = cv0$lambda.1se),
 
 pld
 
-pld <- as.data.frame(pld) %>%
+pld_long <- as.data.frame(pld) %>%
   pivot_longer(cols = c(min, se1),
                             names_to = "Measure", 
                             values_to = "Partial Likelihood Deviance")
       
-ggplot(pld, aes(x = Alpha, y = `Partial Likelihood Deviance`,
-                color = Measure)) +
+ggplot(pld, aes(x = Alpha, y = min)) +
   geom_line() +
-  theme_classic()
+  theme_classic() +
+  ylab("Minimum Partial Likelihood Deviance")
 ```
 
 ```{r}
-set.seed(1)
+set.seed(2024)
 # Fit the logistic regression model with Lasso regularization
-lasso_model <- glmnet(LassoX, Lassoy,
-                         family = "binomial",
-                      alpha = 0.90,
-                      nlambda = 100)
+#lasso_model <- glmnet(LassoX, Lassoy,
+#                         family = "binomial",
+#                      alpha = 0.90,
+#                      nlambda = 100)
 
 # Choose the optimal lambda (regularization parameter) using cross-validation
-best_lambda <- lasso_model$lambda.min
+#best_lambda <- lasso_model$lambda.min
 
 # Refit the model using the selected lambda
-lasso_model_final <- lasso_model <- glmnet(LassoX, Lassoy,
+lasso_model_final <- glmnet(LassoX, Lassoy,
                          family = "binomial",
-                      alpha = 0.90,
-                      lambda = best_lambda)
+                      alpha = 1,
+                      lambda = cv1$lambda.1se)
 
 # Extract coefficients from the model
 coefficients <- coef(lasso_model_final)
@@ -132,18 +160,33 @@ coefficients_df <- coefficients_df %>%
 ggplot(coefficients_df, aes(x = Variable, y = s0)) +
   geom_bar(stat = "identity", fill = "skyblue") +
   coord_flip() +
-  labs(x = "Variables", y = "Coefficients", title = "Lasso Regression Coefficients") +
+  labs(x = "Variables", y = "Coefficients", title = "Elastic Net Regression Coefficients") +
   theme_minimal()
 ```
+We need to find out what: dysrhy0.5	and cvd0.333333 code for.
 
+my guess is arterial dysrhythmia and symptomatic cad...
 
 ```{r}
 result <- predict(lasso_model_final,
-                  newdata = test %>% select(-survival_1yr_censor.1), # use the test set
+                  newdata = whole %>% select(-survival_1yr_censor.1), # use the test set
                   type = "coefficients")
 
-as.data.frame(as.matrix(result))
+as.data.frame(as.matrix(result)) %>%
+  filter(s0 != 0)
 
+###This is not appropriate given the number of event and that variables were obtained from elastic nets.
+
+#result_lr <- 
+#  glm(survival_1yr_censor.1 ~ age_at_procedure + insurance.Public + cvd + copd +
+#        prior_cabg + potassium + rdw + nlr + sii + family_history_of_aaa.Yes +
+#        unfit_for_open_aaa_repair.Yes + maximum_aaa_diameter + neck_aaa_angle	+
+#        anesthesia.General + open_femoral_transverse,
+#      family = "binomial",
+#      data = whole)
+#summary(result_lr)
+
+#result_lr
 ```
 
 

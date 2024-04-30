@@ -121,15 +121,6 @@ EVAR_preprocess$primprocid <- NULL
 
 ### Data Types
 
-Change column data types
-
-When converting to factors make sure the ordering makes sense. For
-example factor levels for smoking might look something like never, quit,
-current. Changing the order to something like quit, current, never,
-could very much mess with the analysis if these factors are considered
-as ordinal variables, which they often are. can use fct_relevel to
-change these
-
 ```{r}
 # Convert all character columns to factors
 EVAR_preprocess <- EVAR_preprocess %>%
