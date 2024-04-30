@@ -1010,7 +1010,6 @@ cat("LogisticRegression with Lasso time", total_time, "\n",
 
 
 =======
->>>>>>> 192992198ed71e2980d07f83cfad5ef617eff561
 ### RF
 ```{r rf}
 # Random Forest Model
@@ -1080,7 +1079,6 @@ cat("XGB time", total_time, "\n",
     "AUC", XGBROC$auc, "\n")
 ```
 
-
 ### Naive Bayes
 ```{r naive-bayes}
 # Naive Bayes Model
@@ -1118,13 +1116,13 @@ cat("NB time", total_time, "\n",
 start_time <- Sys.time()
 set.seed(42)
 
-levels(train_sacreg$reintervention.Yes) <- c("Alive", "Dead")
+levels(train_sacreg$survival_1yr_censor.1) <- c("Alive", "Dead")
 
 # specify tuning grid for optimum hyperparameters
 SVMgrid <- expand.grid(sigma = c(0.01, 0.05, 0.1, 1),
                           C = c(0.01, 0.05, 0.1, 1))
 # train RF model
-SVM <- train(reintervention.Yes ~ .,
+SVM <- train(survival_1yr_censor.1 ~ .,
             data = train_sacreg,
             method = "svmRadial",
             trControl = repeatedcv_trControl,
@@ -1133,10 +1131,10 @@ SVM <- train(reintervention.Yes ~ .,
             importance = TRUE)
 
 # predict on test set
-SVMpred <- predict(SVM, newdata = test_sacreg %>% select(-reintervention.Yes), # use the test set
+SVMpred <- predict(SVM, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
                          type = "prob")
 
-SVMROC <- roc(test_sacreg$reintervention.Yes, SVMpred$Dead)
+SVMROC <- roc(test_sacreg$survival_1yr_censor.1, SVMpred$Dead)
 
 total_time <- Sys.time() - start_time
 cat("SVM time", total_time, "\n",
@@ -1173,11 +1171,9 @@ s <- kernelshap(sac_regression_XGB,
 ```
 
 ```{r}
-sac_reg_shap <- s
-sacreg_sv <- shapviz(sac_reg_shap)
-survival_sv <- shapviz(survival_shap)
-sv_importance(sacreg_sv$X1, kind = "beeswarm", max_display = 10)
-sv_importance(survival_sv$Dead, kind = "no", max_display = 10)
+
+survival_sv <- shapviz(s)
+sv_importance(survival_sv, kind = "beeswarm", max_display = 10)
 
 ```
 
