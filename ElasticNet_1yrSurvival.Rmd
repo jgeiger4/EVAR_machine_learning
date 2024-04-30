@@ -21,7 +21,7 @@ if (!require("pacman")) install.packages("pacman")
 # Use pacman to load add-on packages as desired
 pacman::p_load(pacman, 
                # essentials
-               tidyverse, rio, caret, glmnet
+               tidyverse, rio, caret, glmnet, finalfit
                
                )
 ```
@@ -68,6 +68,14 @@ whole[factor] <- lapply(whole[factor], as.factor)
 set.seed(2024)
 LassoX <- model.matrix(survival_1yr_censor.1 ~ ., data = whole)
 Lassoy <- whole$survival_1yr_censor.1
+
+imputed <- missRanger(data =  EVAR_preprocess, 
+                           # impute all variables using all variables except outcomes
+                           formula = . ~ . -sac_regression_12m_cat - survival_1yr_censor - survival_5yr_censor - reintervention,
+                           pmm.k = 3, num.trees = 100)
+
+LassoX <- model.matrix(survival_1yr_censor ~ ., data = imputed %>% select(-c(reintervention, survival_5yr_censor, sac_regression_12m_cat)))
+Lassoy <- imputed$survival_1yr_censor
 
 # Perform 10-fold cross-validation to select lambda
 lambdas_to_try <- 10^seq(-4, 2, length.out = 100)
@@ -122,7 +130,7 @@ pld_long <- as.data.frame(pld) %>%
                             names_to = "Measure", 
                             values_to = "Partial Likelihood Deviance")
       
-ggplot(pld, aes(x = Alpha, y = min)) +
+ggplot(as.data.frame(pld), aes(x = Alpha, y = min)) +
   geom_line() +
   theme_classic() +
   ylab("Minimum Partial Likelihood Deviance")
@@ -142,8 +150,8 @@ set.seed(2024)
 # Refit the model using the selected lambda
 lasso_model_final <- glmnet(LassoX, Lassoy,
                          family = "binomial",
-                      alpha = 1,
-                      lambda = cv1$lambda.1se)
+                      alpha = 0.95,
+                      lambda = cv1$lambda.min)
 
 # Extract coefficients from the model
 coefficients <- coef(lasso_model_final)
@@ -167,6 +175,9 @@ We need to find out what: dysrhy0.5	and cvd0.333333 code for.
 
 my guess is arterial dysrhythmia and symptomatic cad...
 
+dysrhy0.5 codes for dysrhythmia Yes, atrial
+cvd0.333333 codes for Hx stroke, asymptomatic
+
 ```{r}
 result <- predict(lasso_model_final,
                   newdata = whole %>% select(-survival_1yr_censor.1), # use the test set
@@ -183,6 +194,8 @@ result_lr <-
       family = "binomial",
       data = whole)
 summary(result_lr)
+
+ffplot <- or_plot(whole, dependent = "survival_1yr_censor.1", explanatory = c("sii", "dysrhy", "cvd", "unfit_for_open_aaa_repair.Yes", "maximum_aaa_diameter"))
 
 #result_lr
 

@@ -520,7 +520,7 @@ post_op_features <- c("iv_bp_support_post_op",
                       "discharge_p2y12_antagonist",
                       "discharge_statin",
                       "discharge_beta_blocker",
-                      "dicharge_ace_inhibitor_arb",
+                      "discharge_ace_inhibitor_arb",
                       "discharge_anticoagulant"
                       )
 EVAR_preprocess <- EVAR_preprocess[,!(names(EVAR_preprocess) %in% post_op_features)]
