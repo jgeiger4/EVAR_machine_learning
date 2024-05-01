@@ -745,8 +745,6 @@ heatmap(correlation_matrix_sacregression)
 
 ### Setting up
 ```{r model-train}
-
-
 train_sacreg <- train_final %>%
   mutate(sac_regression_12m_cat.Regression = 
            as.factor(sac_regression_12m_cat.Regression),
@@ -797,6 +795,8 @@ ml_outcome <- "survival_1yr_censor.1"
 
 ### trainControl
 ```{r}
+set.seed(42)
+
 repeatedcv_trControl <- trainControl(method = "repeatedcv", 
                                        number = 5, 
                                        repeats = 5, # 5-fold ; 5 repeats
@@ -806,8 +806,7 @@ repeatedcv_trControl <- trainControl(method = "repeatedcv",
                                        returnData = FALSE, # Do not return the resampled data
                                        returnResamp = "final", # Only return the final resample result
                                        selectionFunction = "best", # Use the best model based on AUC
-                                       allowParallel = TRUE) # Enable parallel processing if available
-set.seed(42)
+                                       allowParallel = TRUE)
 
 ```
 
@@ -824,7 +823,8 @@ LR <- train(survival_1yr_censor.1 ~ .,
                method = "glm",
                family = "binomial",
                trControl = repeatedcv_trControl,
-               metric = "ROC" # Increase max iterations
+               metric = "ROC",
+            weights = class_weights# Increase max iterations
                )
 
 # Make predictions on the test set
@@ -1086,19 +1086,22 @@ start_time <- Sys.time()
 set.seed(42)
 
 levels(train_sacreg$survival_1yr_censor.1) <- c("Alive", "Dead")
+class_weights <- ifelse(train_sacreg$survival_1yr_censor.1 == "Dead", 7.69, 0.53)
+
 
 
 # specify tuning grid for optimum hyperparameters
 SVMgrid <- expand.grid(sigma = c(0.01, 0.05, 0.1, 1),
-                          C = c(0.01, 0.05, 0.1, 1))
+                       C = c(0.01, 0.05, 0.1, 1))
 # train RF model
 SVM <- train(survival_1yr_censor.1 ~ .,
-            data = train_sacreg_balanced,
+            data = train_sacreg,
             method = "svmRadial",
             trControl = repeatedcv_trControl,
             tuneGrid = SVMgrid,
             metric = "ROC",
-            importance = TRUE)
+            importance = TRUE,
+            weights = class_weights)
 
 # predict on test set
 SVMpred <- predict(SVM, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
@@ -1113,23 +1116,7 @@ cat("SVM time", total_time, "\n",
 ```
 
 
-### Variable Importance
-
-```{r}
-svm_model <- train(survival_1yr_censor.1 ~ sii + nlr + insurance.Public + maximum_aaa_diameter + prior_cabg,
-            data = train_sacreg,
-            method = "svmRadial",
-            trControl = repeatedcv_trControl,
-            tuneGrid = SVMgrid,
-            metric = "ROC")
-
-svm_model_pred <- predict(svm_model, newdata = test_sacreg %>% select(-survival_1yr_censor.1), # use the test set
-                         type = "prob")
-svm_modelROC <- roc(test_sacreg$survival_1yr_censor.1, svm_model_pred$X1)
-
-```
-
-### SHAP
+### SHAP Variable Importance
 ```{r}
 X_explain <- train_sacreg %>%
   select(-survival_1yr_censor.1)
@@ -1144,10 +1131,45 @@ kernel_s <- kernelshap(SVM,
 
 ```{r}
 survival_sv <- shapviz(s)
-sv_importance(survival_sv$Dead, kind = "bar", max_display = 10, show_numbers = TRUE, format_fun = format_max)
+shap_importance <- sv_importance(survival_sv$Dead, kind = "bar", max_display = 10, show_numbers = TRUE, format_fun = format_max)
+
+shap_importance_df <- as.data.frame(shap_importance$data)
+
+shap_importance_df <- shap_importance_df %>%
+  mutate(feature = fct_recode(feature,
+                              "Atrial Dysrhythmia" = "atrial_dysrhyNo",
+                              "Preop P2Y12 Antagonist" = "pre_op_p2y12_antagonist.Yes",
+                              "SII" = "sii",
+                              "Prior CABG" = "prior_cabg",
+                              "Neck AAA Angle" = "neck_aaa_angle",
+                              "Maximum AAA diameter" = "maximum_aaa_diameter",
+                              "COPD" = "copd",
+                              "Years quit smoking" = "years_quit_smoking",
+                              "Unfit for Open AAA Repair" = "unfit_for_open_aaa_repair.Yes",
+                              "Smoking" = "smoking"))
+
+
+
+shap_importance_barplot <- ggplot(shap_importance_df, aes(x = feature, y = value)) +
+  geom_bar(stat = "identity", fill = "#00205B") +
+  geom_text(aes(label = sprintf("%.5f", y = value)), 
+            vjust = 0.5, hjust = 1.1, color = "white", family = "Helvetica Neue", fontface = "bold") +  # Add text inside bars
+  coord_flip() +
+  labs(x = "", y = "mean(|SHAP value|)") +  # Optionally, set axis labels
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(size = 12, family = "Helvetica Neue", face = "bold", color = "black"),  # Adjust font size and family of axis text
+        axis.title = element_text(size = 12, family = "Helvetica Neue", face = "bold"))
+    
+shap_importance_barplot
+
 ```
 
-
+```{r}
+ggsave("SHAP_importance_plot.png",
+       plot = shap_importance_barplot, dpi = 300, height = 5, width = 8)
+```
 
 
 ```{r}
@@ -1155,18 +1177,6 @@ sv_dependence(survival_sv$Dead, v = c("atrial_dysrhyNo"))
 ```
 
 ### Results
-
-```{r}
-survival1yr_SMV <- SVM
-survival1yr_SMV_ROC <- SVMROC
-
-```
-
-```{r}
-sac_regression_XGB <- XGB
-sac_regression_XGB_ROC <- XGBROC
-```
-
 
 
 ## PLOTS
